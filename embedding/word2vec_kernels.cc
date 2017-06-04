@@ -240,7 +240,7 @@ REGISTER_KERNEL_BUILDER(Name("SkipgramWord2vec").Device(DEVICE_CPU), SkipgramWor
 
 class C_SkipgramWord2vecOp : public OpKernel {
  public:
-  explicit SkipgramWord2vecOp(OpKernelConstruction* ctx)
+  explicit C_SkipgramWord2vecOp(OpKernelConstruction* ctx)
       : OpKernel(ctx), rng_(&philox_) {
     string filename;
     OP_REQUIRES_OK(ctx, ctx->GetAttr("filename", &filename));
@@ -269,16 +269,16 @@ class C_SkipgramWord2vecOp : public OpKernel {
     auto Texamples = examples.flat<int32>();
     Tensor labels(DT_INT32, TensorShape({batch_size_}));
     auto Tlabels = labels.flat<int32>();
-    Tensor contexts(DT_INT32, TensorShape({batch_size_, window_size_}));
-    auto Tcontexts = context.flat<int32>();
+    Tensor contexts(DT_INT32, TensorShape({batch_size_, 2*window_size_}));
+    auto Tcontexts = contexts.flat<int32>();
     {
       mutex_lock l(mu_);
       for (int i = 0; i < batch_size_; ++i) {
         Texamples(i) = precalc_examples_[precalc_index_].input;
         Tlabels(i) = precalc_examples_[precalc_index_].label;
 //        TODO: adding contexts. is it ok?
-        for (int k = 0; k < window_size_; ++k) {
-            T_contexts(i*window_size_+k) = precalc_examples_[precalc_index_].context[k]
+        for (int k = 0; k < 2*window_size_; ++k) {
+            Tcontexts(i*window_size_+k) = precalc_examples_[precalc_index_].context[k];
         }
         precalc_index_++;
         if (precalc_index_ >= kPrecalc) {
@@ -378,6 +378,23 @@ class C_SkipgramWord2vecOp : public OpKernel {
     }
     *example = sentence_[sentence_index_];
     *label = sentence_[label_pos_++];
+    int32 context_start = sentence_index_ - window_size_;
+    int32 context_end = sentence_index_ + window_size_;
+    if(context_start < 0){
+        context_end += 0 - context_start;
+        context_start = 0;
+    }
+    if(context_end > corpus_size_){
+        context_start = corpus_size_ - context_end;
+        context_end = corpus_size_;
+    }
+    for (int i = 0; i < context_end - context_start+1; ++i) {
+        if(i+context_start == sentence_index_){
+            continue;
+        } else {
+            (*context)[i] = sentence_[i+context_start];
+        }
+    }
   }
 
   Status Init(Env* env, const string& filename) {

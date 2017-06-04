@@ -33,6 +33,7 @@ REGISTER_OP("SkipgramWord2vec")
     .Attr("subsample: float = 1e-3")
     .Doc(R"doc(
 Parses a text file and creates a batch of examples.
+
 Out:
 vocab_word: A vector of words in the corpus.
 vocab_freq: Frequencies of words. Sorted in the non-ascending order.
