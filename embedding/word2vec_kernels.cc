@@ -238,9 +238,9 @@ class SkipgramWord2vecOp : public OpKernel {
 
 REGISTER_KERNEL_BUILDER(Name("SkipgramWord2vec").Device(DEVICE_CPU), SkipgramWord2vecOp);
 
-class C_SkipgramWord2vecOp : public OpKernel {
+class ContextSkipgramWord2vecOp : public OpKernel {
  public:
-  explicit C_SkipgramWord2vecOp(OpKernelConstruction* ctx)
+  explicit ContextSkipgramWord2vecOp(OpKernelConstruction* ctx)
       : OpKernel(ctx), rng_(&philox_) {
     string filename;
     OP_REQUIRES_OK(ctx, ctx->GetAttr("filename", &filename));
@@ -457,7 +457,7 @@ class C_SkipgramWord2vecOp : public OpKernel {
   }
 };
 
-REGISTER_KERNEL_BUILDER(Name("C_SkipgramWord2vec").Device(DEVICE_CPU), C_SkipgramWord2vecOp);
+REGISTER_KERNEL_BUILDER(Name("ContextSkipgramWord2vec").Device(DEVICE_CPU), ContextSkipgramWord2vecOp);
 
 
 // TODO: make a similr one that updates CNN based attention if I can derive the update equation out. Use nce loss before it.

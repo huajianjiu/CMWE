@@ -34,7 +34,6 @@ REGISTER_OP("SkipgramWord2vec")
     .Doc(R"doc(
 Parses a text file and creates a batch of examples.
 
-Out:
 vocab_word: A vector of words in the corpus.
 vocab_freq: Frequencies of words. Sorted in the non-ascending order.
 words_per_epoch: Number of words per epoch in the data file.
@@ -42,7 +41,7 @@ current_epoch: The current epoch number.
 total_words_processed: The total number of words processed so far.
 examples: A vector of word ids.
 labels: A vector of word ids.
-In:
+
 filename: The corpus's text file name.
 batch_size: The size of produced batch.
 window_size: The number of words to predict to the left and right of the target.
@@ -52,7 +51,7 @@ subsample: Threshold for word occurrence. Words that appear with higher
     frequency will be randomly down-sampled. Set to 0 to disable.
 )doc");
 
-REGISTER_OP("C_SkipgramWord2vec")
+REGISTER_OP("ContextSkipgramWord2vec")
     .Output("vocab_word: string")
     .Output("vocab_freq: int32")
     .Output("words_per_epoch: int64")
@@ -70,7 +69,6 @@ REGISTER_OP("C_SkipgramWord2vec")
     .Doc(R"doc(
 Parses a text file and creates a batch of examples and their context.
 
-Out:
 vocab_word: A vector of words in the corpus.
 vocab_freq: Frequencies of words. Sorted in the non-ascending order.
 words_per_epoch: Number of words per epoch in the data file.
@@ -79,7 +77,7 @@ total_words_processed: The total number of words processed so far.
 examples: A vector of word ids.
 labels: A vector of word ids.
 contexts: A 2-D matrix of context of examples [examples, context_words]
-In:
+
 filename: The corpus's text file name.
 batch_size: The size of produced batch.
 window_size: The number of words to predict to the left and right of the target.
