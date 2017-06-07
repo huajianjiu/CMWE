@@ -2,7 +2,9 @@ from keras import backend as K
 from keras.engine.topology import Layer
 
 class Embedding3D(Layer):
-    """Turns positive integers (indexes) into dense vectors of fixed size.
+    """
+    For Multiprototype embedding, 
+    Turns positive integers (indexes) into dense vectors of fixed size.
     This layer can only be used as the first layer in a model.
     # Arguments
       input_dim: int > 0. Size of the vocabulary,
