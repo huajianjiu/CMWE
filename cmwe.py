@@ -63,7 +63,8 @@ flags.DEFINE_boolean(
 
 FLAGS = flags.FLAGS
 
-CONTEXT_WINDOW=5
+CONTEXT_WINDOW = 5
+
 
 class Options(Options_):
     def __init__(self):
@@ -96,7 +97,6 @@ class CMWE(Word2Vec):
         session.run(embedding_init,
                     feed_dict={single_embedding_placeholder: single_embedding})
 
-
     def forward(self, examples, labels):
         """Build the graph for the forward pass."""
         opts = self._options
@@ -121,7 +121,7 @@ class CMWE(Word2Vec):
         # cnn paramters
         filter_shape = [opts.vocab_size, opts.filter_size, opts.emb_dim, 1, opts.num_filters]
         conv1_w = tf.Variable(
-            tf.truncated_normal(filter_shape,stddev=0.1),
+            tf.truncated_normal(filter_shape, stddev=0.1),
             name="conv1_w"
         )
         conv1_b = tf.Variable(tf.constant(0.1, shape=[opts.vocab_size, opts.num_filters]),
@@ -182,7 +182,6 @@ class CMWE(Word2Vec):
         example_conv2_b = tf.nn.embedding_lookup(conv1_b, examples)
         example_conv3_b = tf.nn.embedding_lookup(conv1_b, examples)
 
-
         # Weights for labels: [batch_size, emb_dim]
         true_w = tf.nn.embedding_lookup(sm_w_t, labels)
         # Biases for labels: [batch_size, 1]
@@ -210,11 +209,11 @@ class CMWE(Word2Vec):
         opts = self._options
         # The training data. A text file.
         (words, counts, words_per_epoch, self._epoch, self._words, examples,
-         labels, contexts) = word2vec.context_skipgram_word2vec(filename=opts.train_data,
-                                                                batch_size=opts.batch_size,
-                                                                window_size=opts.window_size,
-                                                                min_count=opts.min_count,
-                                                                subsample=opts.subsample)
+         labels, contexts) = word2vec.full_context_skipgram_word2vec(filename=opts.train_data,
+                                                                     batch_size=opts.batch_size,
+                                                                     window_size=opts.window_size,
+                                                                     min_count=opts.min_count,
+                                                                     subsample=opts.subsample)
         (opts.vocab_words, opts.vocab_counts,
          opts.words_per_epoch) = self._session.run([words, counts, words_per_epoch])
         opts.vocab_size = len(opts.vocab_words)
