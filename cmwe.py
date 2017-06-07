@@ -24,7 +24,11 @@ flags.DEFINE_string(
 flags.DEFINE_string(
     "eval_data", None, "Analogy questions. "
                        "See README.md for how to get 'questions-words.txt'.")
-flags.DEFINE_integer("embedding_size", 200, "The embedding dimension size.")
+flags.DEFINE_string(
+    "pretrained_emb", "embedding/glove.6B.100d.txt",
+    "Pretrained single prototype word embedding data."
+)
+flags.DEFINE_integer("embedding_size", 100, "The embedding dimension size.")
 flags.DEFINE_integer(
     "epochs_to_train", 15,
     "Number of epochs to train. Each epoch processes the training data once "
@@ -49,6 +53,8 @@ flags.DEFINE_float("subsample", 1e-4,
                    "Subsample threshold for word occurrence. Words that appear "
                    "with higher frequency will be randomly down-sampled. Set "
                    "to 0 to disable.")
+tf.flags.DEFINE_string("filter_sizes", "5,5,5", "Comma-separated filter sizes (default: '3,4,5')")
+tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
 flags.DEFINE_boolean(
     "interactive", False,
     "If true, enters an IPython interactive session to play with the trained "
@@ -62,11 +68,34 @@ class Options(Options_):
     def __init__(self):
         super().__init__()
         self.prototypes = FLAGS.prototypes
+        self.pretrained_emb = FLAGS.pretrained_emb
 
 
 class CMWE(Word2Vec):
     def __init__(self, options, session):
         super().__init__(options, session)
+        self.init_single_emb(session)
+
+    def init_single_emb(self, session):
+        opts = self._options
+        single_embedding_placeholder = tf.placeholder(tf.float32, [opts.vocab_size, opts.emb_dim])
+        embedding_init = self._single_emb.assign(single_embedding_placeholder)
+        single_embedding = np.zeros([opts.vocab_size, opts.emb_dim],
+                                    dtype="float32")
+        with open(opts.pretrained_emb, 'r') as f:
+            for line in f.readlines():
+                # here the build graph is inited so self has id2word and word2id
+                if len(line.split()) < 3:
+                    continue
+                line = line.split()
+                if line[0].strip() in opts.vocab_words:
+                    single_embedding[self._word2id[line[0].strip()]] = np.array(line[1:-1], dtype="float32")
+        session.run(embedding_init,
+                    feed_dict={single_embedding_placeholder: single_embedding})
+
+    def build_sub_cnn(self):
+        # TODO
+        pass
 
     def forward(self, examples, labels):
         """Build the graph for the forward pass."""
@@ -80,6 +109,13 @@ class CMWE(Word2Vec):
                 [opts.vocab_size, opts.prototypes, opts.emb_dim], -init_width, init_width),
             name="mul_emb")
         self._mul_emb = mul_emb
+
+        single_emb = \
+            tf.Variable(tf.constant(0.0, shape=[opts.vocab_size,
+                                                opts.emb_dim]),
+                        trainable=False, name="single_emb")
+        self._single_emb = single_emb
+
 
         # Softmax weight: [vocab_size, emb_dim]. Transposed.
         sm_w_t = tf.Variable(
