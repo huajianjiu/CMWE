@@ -93,9 +93,6 @@ class CMWE(Word2Vec):
         session.run(embedding_init,
                     feed_dict={single_embedding_placeholder: single_embedding})
 
-    def build_sub_cnn(self):
-        # TODO
-        pass
 
     def forward(self, examples, labels):
         """Build the graph for the forward pass."""
@@ -116,6 +113,10 @@ class CMWE(Word2Vec):
                         trainable=False, name="single_emb")
         self._single_emb = single_emb
 
+        filter_sizes = [int(filter_size) for filter_size in opts.filter_sizes.split(",")]
+        conv1_w = tf.Variable(
+            tf.truncated_normal([filter_sizes[0], opts.emb_dim, ])
+        )
 
         # Softmax weight: [vocab_size, emb_dim]. Transposed.
         sm_w_t = tf.Variable(
