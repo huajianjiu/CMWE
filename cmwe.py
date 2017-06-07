@@ -53,7 +53,7 @@ flags.DEFINE_float("subsample", 1e-4,
                    "Subsample threshold for word occurrence. Words that appear "
                    "with higher frequency will be randomly down-sampled. Set "
                    "to 0 to disable.")
-tf.flags.DEFINE_string("filter_sizes", "5,5,5", "Comma-separated filter sizes (default: '3,4,5')")
+tf.flags.DEFINE_integer("filter_sizes", 5, "filter size(default: 5")
 tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
 flags.DEFINE_boolean(
     "interactive", False,
@@ -63,12 +63,15 @@ flags.DEFINE_boolean(
 
 FLAGS = flags.FLAGS
 
+CONTEXT_WINDOW=5
 
 class Options(Options_):
     def __init__(self):
         super().__init__()
         self.prototypes = FLAGS.prototypes
         self.pretrained_emb = FLAGS.pretrained_emb
+        self.filter_size = FLAGS.filter_size
+        self.context_size = CONTEXT_WINDOW * 2 + 1
 
 
 class CMWE(Word2Vec):
@@ -107,16 +110,39 @@ class CMWE(Word2Vec):
             name="mul_emb")
         self._mul_emb = mul_emb
 
+        # Pretrained single prototype embedding
         single_emb = \
             tf.Variable(tf.constant(0.0, shape=[opts.vocab_size,
                                                 opts.emb_dim]),
                         trainable=False, name="single_emb")
         self._single_emb = single_emb
 
-        filter_sizes = [int(filter_size) for filter_size in opts.filter_sizes.split(",")]
+        # TODO: change to fit the context_size. and all use one set
+        # cnn paramters
+        filter_shape = [opts.vocab_size, opts.filter_size, opts.emb_dim, 1, opts.num_filters]
         conv1_w = tf.Variable(
-            tf.truncated_normal([filter_sizes[0], opts.emb_dim, ])
+            tf.truncated_normal(filter_shape,stddev=0.1),
+            name="conv1_w"
         )
+        conv1_b = tf.Variable(tf.constant(0.1, shape=[opts.vocab_size, opts.num_filters]),
+                              name="conv1_b")
+        conv2_w = tf.Variable(
+            tf.truncated_normal(filter_shape, stddev=0.1),
+            name="conv2_w"
+        )
+        conv2_b = tf.Variable(tf.constant(0.1, shape=[opts.vocab_size, opts.num_filters]),
+                              name="conv2_b")
+        conv3_w = tf.Variable(
+            tf.truncated_normal(filter_shape, stddev=0.1),
+            name="conv3_w"
+        )
+        conv3_b = tf.Variable(tf.constant(0.1, shape=[opts.vocab_size, opts.num_filters]),
+                              name="conv3_b")
+        dense_w = tf.Variable(
+            tf.random_uniform([opts.num_filters, opts.prototypes]),
+            name="dense_w"
+        )
+        dense_b = tf.Variable(tf.constant(0.1, shape=[opts.prototypes]), name="dense_b")
 
         # Softmax weight: [vocab_size, emb_dim]. Transposed.
         sm_w_t = tf.Variable(
@@ -146,7 +172,16 @@ class CMWE(Word2Vec):
             unigrams=opts.vocab_counts.tolist()))
 
         # Embeddings for examples: [batch_size, emb_dim]
-        example_emb = tf.nn.embedding_lookup(emb, examples)
+        example_mulemb = tf.nn.embedding_lookup(mul_emb, examples)
+
+        # CNN paramter for labels
+        example_conv1_w = tf.nn.embedding_lookup(conv1_w, examples)
+        example_conv2_w = tf.nn.embedding_lookup(conv2_w, examples)
+        example_conv3_w = tf.nn.embedding_lookup(conv3_w, examples)
+        example_conv1_b = tf.nn.embedding_lookup(conv1_b, examples)
+        example_conv2_b = tf.nn.embedding_lookup(conv1_b, examples)
+        example_conv3_b = tf.nn.embedding_lookup(conv1_b, examples)
+
 
         # Weights for labels: [batch_size, emb_dim]
         true_w = tf.nn.embedding_lookup(sm_w_t, labels)

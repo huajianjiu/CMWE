@@ -24,7 +24,7 @@ limitations under the License.
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/util/guarded_philox_random.h"
 
-#define CONTEXT_WINDOW 3
+#define CONTEXT_WINDOW 5
 
 namespace tensorflow {
 
