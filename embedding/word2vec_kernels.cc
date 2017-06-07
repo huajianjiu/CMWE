@@ -24,6 +24,8 @@ limitations under the License.
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/util/guarded_philox_random.h"
 
+#define CONTEXT_WINDOW 3
+
 namespace tensorflow {
 
 // Number of examples to precalculate.
@@ -269,7 +271,8 @@ class ContextSkipgramWord2vecOp : public OpKernel {
     auto Texamples = examples.flat<int32>();
     Tensor labels(DT_INT32, TensorShape({batch_size_}));
     auto Tlabels = labels.flat<int32>();
-    Tensor contexts(DT_INT32, TensorShape({batch_size_, 2*window_size_}));
+//    declare contexts tensor
+    Tensor contexts(DT_INT32, TensorShape({batch_size_, 2*CONTEXT_WINDOW}));
     auto Tcontexts = contexts.flat<int32>();
     {
       mutex_lock l(mu_);
@@ -277,8 +280,8 @@ class ContextSkipgramWord2vecOp : public OpKernel {
         Texamples(i) = precalc_examples_[precalc_index_].input;
         Tlabels(i) = precalc_examples_[precalc_index_].label;
 //        TODO: adding contexts. is it ok?
-        for (int k = 0; k < 2*window_size_; ++k) {
-            Tcontexts(i*window_size_+k) = precalc_examples_[precalc_index_].context[k];
+        for (int k = 0; k < 2*CONTEXT_WINDOW; ++k) {
+            Tcontexts(i*2*CONTEXT_WINDOW+k) = precalc_examples_[precalc_index_].context[k];
         }
         precalc_index_++;
         if (precalc_index_ >= kPrecalc) {
@@ -309,7 +312,9 @@ class ContextSkipgramWord2vecOp : public OpKernel {
     int32 input;
     int32 label;
 //    context vector. is it ok?
-    std::vector<int32> context;
+//    std::vector<int32> context;
+//    int32 context[2*CONTEXT_WINDOW];
+    std::array<int32, 2*CONTEXT_WINDOW> context;
   };
 
   int32 batch_size_ = 0;
@@ -340,7 +345,7 @@ class ContextSkipgramWord2vecOp : public OpKernel {
   // example, we randomly generate [label_pos_, label_limit) for
   // labels.
 //  TODO: get context vector
-  void NextExample(int32* example, int32* label, std::vector<int32>* context) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+  void NextExample(int32* example, int32* label, std::array<int32, 2*CONTEXT_WINDOW>* context) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     while (true) {
       if (label_pos_ >= label_limit_) {
         ++total_words_processed_;
@@ -378,20 +383,21 @@ class ContextSkipgramWord2vecOp : public OpKernel {
     }
     *example = sentence_[sentence_index_];
     *label = sentence_[label_pos_++];
-    int32 context_start = sentence_index_ - window_size_;
-    int32 context_end = sentence_index_ + window_size_;
+    int32 context_start = sentence_index_ - CONTEXT_WINDOW;
+    int32 context_end = sentence_index_ + CONTEXT_WINDOW;
     if(context_start < 0){
         context_end += 0 - context_start;
         context_start = 0;
     }
     if(context_end > corpus_size_){
-        context_start = corpus_size_ - context_end;
+        context_start += corpus_size_ - context_end;
         context_end = corpus_size_;
     }
     for (int i = 0; i < context_end - context_start+1; ++i) {
         if(i+context_start == sentence_index_){
             continue;
         } else {
+//            LOG(INFO) << sentence_[i+context_start];
             (*context)[i] = sentence_[i+context_start];
         }
     }

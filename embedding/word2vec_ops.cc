@@ -76,7 +76,7 @@ current_epoch: The current epoch number.
 total_words_processed: The total number of words processed so far.
 examples: A vector of word ids.
 labels: A vector of word ids.
-contexts: A 2-D matrix of context of examples [examples, context_words]
+contexts: A matrix of context of examples [examples, context_words]
 
 filename: The corpus's text file name.
 batch_size: The size of produced batch.
