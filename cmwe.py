@@ -1,19 +1,32 @@
+"""
+by Yuanzhi Ke. June 2017
+require keras 1.2.2, tensorflow 1.1, numpy
+"""
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
-import sys
-import threading
-import time
-
-from six.moves import xrange  # pylint: disable=redefined-builtin
-
 import numpy as np
 import tensorflow as tf
 
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
+from keras.utils.np_utils import to_categorical
+
+from keras.layers import Embedding
+from keras.layers import Dense, Input, Flatten
+from keras.layers import Conv1D, MaxPooling1D, Embedding, Merge, Dropout, LSTM, GRU, Bidirectional
+from keras.models import Model
+
+from keras import backend as K
+from keras.engine.topology import Layer, InputSpec
+from keras import initializations
+
 from embedding.word2vec import word2vec, Word2Vec
 from embedding.word2vec import Options as Options_
+from mulembedding import MulEmbedding
+from attention import AttLayer
 
 flags = tf.app.flags
 
@@ -71,134 +84,13 @@ class Options(Options_):
         self.pretrained_emb = FLAGS.pretrained_emb
 
 
-class CMWE(Word2Vec):
-    def __init__(self, options, session):
-        super().__init__(options, session)
-        self.init_single_emb(session)
-
-    def init_single_emb(self, session):
-        opts = self._options
-        single_embedding_placeholder = tf.placeholder(tf.float32, [opts.vocab_size, opts.emb_dim])
-        embedding_init = self._single_emb.assign(single_embedding_placeholder)
-        single_embedding = np.zeros([opts.vocab_size, opts.emb_dim],
-                                    dtype="float32")
-        with open(opts.pretrained_emb, 'r') as f:
-            for line in f.readlines():
-                # here the build graph is inited so self has id2word and word2id
-                if len(line.split()) < 3:
-                    continue
-                line = line.split()
-                if line[0].strip() in opts.vocab_words:
-                    single_embedding[self._word2id[line[0].strip()]] = np.array(line[1:-1], dtype="float32")
-        session.run(embedding_init,
-                    feed_dict={single_embedding_placeholder: single_embedding})
-
-
-    def forward(self, examples, labels):
-        """Build the graph for the forward pass."""
-        opts = self._options
-
-        # Declare all variables we need.
-        # Multi-prototype Embedding: [vocab_size, prototypes, emb_dim]
-        init_width = 0.5 / opts.emb_dim
-        mul_emb = tf.Variable(
-            tf.random_uniform(
-                [opts.vocab_size, opts.prototypes, opts.emb_dim], -init_width, init_width),
-            name="mul_emb")
-        self._mul_emb = mul_emb
-
-        single_emb = \
-            tf.Variable(tf.constant(0.0, shape=[opts.vocab_size,
-                                                opts.emb_dim]),
-                        trainable=False, name="single_emb")
-        self._single_emb = single_emb
-
-        filter_sizes = [int(filter_size) for filter_size in opts.filter_sizes.split(",")]
-        conv1_w = tf.Variable(
-            tf.truncated_normal([filter_sizes[0], opts.emb_dim, ])
-        )
-
-        # Softmax weight: [vocab_size, emb_dim]. Transposed.
-        sm_w_t = tf.Variable(
-            tf.zeros([opts.vocab_size, opts.emb_dim]),
-            name="sm_w_t")
-
-        # Softmax bias: [vocab_size].
-        sm_b = tf.Variable(tf.zeros([opts.vocab_size]), name="sm_b")
-
-        # Global step: scalar, i.e., shape [].
-        self.global_step = tf.Variable(0, name="global_step")
-
-        # Nodes to compute the nce loss w/ candidate sampling.
-        labels_matrix = tf.reshape(
-            tf.cast(labels,
-                    dtype=tf.int64),
-            [opts.batch_size, 1])
-
-        # Negative sampling.
-        sampled_ids, _, _ = (tf.nn.fixed_unigram_candidate_sampler(
-            true_classes=labels_matrix,
-            num_true=1,
-            num_sampled=opts.num_samples,
-            unique=True,
-            range_max=opts.vocab_size,
-            distortion=0.75,
-            unigrams=opts.vocab_counts.tolist()))
-
-        # Embeddings for examples: [batch_size, emb_dim]
-        example_emb = tf.nn.embedding_lookup(emb, examples)
-
-        # Weights for labels: [batch_size, emb_dim]
-        true_w = tf.nn.embedding_lookup(sm_w_t, labels)
-        # Biases for labels: [batch_size, 1]
-        true_b = tf.nn.embedding_lookup(sm_b, labels)
-
-        # Weights for sampled ids: [num_sampled, emb_dim]
-        sampled_w = tf.nn.embedding_lookup(sm_w_t, sampled_ids)
-        # Biases for sampled ids: [num_sampled, 1]
-        sampled_b = tf.nn.embedding_lookup(sm_b, sampled_ids)
-
-        # True logits: [batch_size, 1]
-        true_logits = tf.reduce_sum(tf.multiply(example_emb, true_w), 1) + true_b
-
-        # Sampled logits: [batch_size, num_sampled]
-        # We replicate sampled noise labels for all examples in the batch
-        # using the matmul.
-        sampled_b_vec = tf.reshape(sampled_b, [opts.num_samples])
-        sampled_logits = tf.matmul(example_emb,
-                                   sampled_w,
-                                   transpose_b=True) + sampled_b_vec
-        return true_logits, sampled_logits
-
-    def build_graph(self):
-        """Build the graph for the full model."""
-        opts = self._options
-        # The training data. A text file.
-        (words, counts, words_per_epoch, self._epoch, self._words, examples,
-         labels, contexts) = word2vec.context_skipgram_word2vec(filename=opts.train_data,
-                                                                batch_size=opts.batch_size,
-                                                                window_size=opts.window_size,
-                                                                min_count=opts.min_count,
-                                                                subsample=opts.subsample)
-        (opts.vocab_words, opts.vocab_counts,
-         opts.words_per_epoch) = self._session.run([words, counts, words_per_epoch])
-        opts.vocab_size = len(opts.vocab_words)
-        print("Data file: ", opts.train_data)
-        print("Vocab size: ", opts.vocab_size - 1, " + UNK")
-        print("Words per epoch: ", opts.words_per_epoch)
-        self._examples = examples
-        self._labels = labels
-        self._contexts = contexts
-        self._id2word = opts.vocab_words
-        for i, w in enumerate(self._id2word):
-            self._word2id[w] = i
-        true_logits, sampled_logits = self.forward(examples, labels)
-        loss = self.nce_loss(true_logits, sampled_logits)
-        tf.summary.scalar("NCE loss", loss)
-        self._loss = loss
-        self.optimize(loss)
-
-        # Properly initialize all variables.
-        tf.global_variables_initializer().run()
-
-        self.saver = tf.train.Saver()
+if __name__ == "__main__":
+    with tf.Graph().as_default(), tf.Session() as session:
+        with tf.device("/cpu:0"):
+            (words, counts, words_per_epoch, _epoch, _words, examples,
+             labels, contexts) = word2vec.context_skipgram_word2vec(filename="test.corpus",
+                                                                    batch_size=5,
+                                                                    window_size=3,
+                                                                    min_count=1,
+                                                                    subsample=1e-4)
+            (vocab, a, b, c) = session.run([words, examples, labels, contexts])
