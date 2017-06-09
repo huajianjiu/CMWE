@@ -22,7 +22,7 @@ from keras.models import Model
 from embedding.word2vec import word2vec, Word2Vec
 from embedding.word2vec import Options as Options_
 from mulembedding import MulEmbedding
-from attention import AttLayer
+from attention import AttentionWithContext
 
 flags = tf.app.flags
 
@@ -134,4 +134,11 @@ def main(_):
                                             output_dim=opts.emb_dim,
                                             input_length=opts.batch_size,
                                             trainable=True)
+
+    # [batch_size, 1]
+    batch_word_input = Input(shape=(opts.batch_size, 1), dtype='int32')
+    # [batch_size, prototypes, emb_dim]
+    multiple_embeded_batch = multiple_embedding_layer(batch_word_input)
+
+
 

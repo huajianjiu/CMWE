@@ -4,42 +4,120 @@
 
 from keras import backend as K
 from keras.engine.topology import Layer
-from keras import initializers
+from keras import initializers, regularizers, constraints
 
-# TODO: change to fit the cnn-based model
-class AttLayer(Layer):
-    def __init__(self, **kwargs):
-        self.init = initializers.get('normal')
-        # self.input_spec = [InputSpec(ndim=3)]
-        super(AttLayer, self).__init__(**kwargs)
+
+class AttentionWithContext(Layer):
+    """
+        Attention operation, with a context/query vector, for temporal data.
+        Supports Masking.
+        Follows the work of Yang et al. [https://www.cs.cmu.edu/~diyiy/docs/naacl16.pdf]
+        "Hierarchical Attention Networks for Document Classification"
+        by using a context vector to assist the attention
+        # Input shape
+            3D tensor with shape: `(samples, steps, features)`.
+        # Output shape
+            2D tensor with shape: `(samples, features)`.
+        :param kwargs:
+        Just put it on top of an RNN Layer (GRU/LSTM/SimpleRNN) with return_sequences=True.
+        The dimensions are inferred based on the output shape of the RNN.
+        Example:
+            model.add(LSTM(64, return_sequences=True))
+            model.add(AttentionWithContext())
+        """
+
+    def __init__(self,
+                 W_regularizer=None, u_regularizer=None, b_regularizer=None,
+                 W_constraint=None, u_constraint=None, b_constraint=None,
+                 bias=True, **kwargs):
+
+        self.supports_masking = True
+        self.init = initializers.get('glorot_uniform')
+
+        self.W_regularizer = regularizers.get(W_regularizer)
+        self.u_regularizer = regularizers.get(u_regularizer)
+        self.b_regularizer = regularizers.get(b_regularizer)
+
+        self.W_constraint = constraints.get(W_constraint)
+        self.u_constraint = constraints.get(u_constraint)
+        self.b_constraint = constraints.get(b_constraint)
+
+        self.bias = bias
+        super(AttentionWithContext, self).__init__(**kwargs)
 
     def build(self, input_shape):
         assert len(input_shape) == 3
-        # self.W = self.init((input_shape[-1],1))
-        self.W = self.init((input_shape[-1],))
-        # self.input_spec = [InputSpec(shape=input_shape)]
-        self.trainable_weights = [self.W]
-        super(AttLayer, self).build(input_shape)  # be sure you call this somewhere!
+
+        self.W = self.add_weight((input_shape[-1], input_shape[-1],),
+                                 initializer=self.init,
+                                 name='{}_W'.format(self.name),
+                                 regularizer=self.W_regularizer,
+                                 constraint=self.W_constraint)
+        if self.bias:
+            self.b = self.add_weight((input_shape[-1],),
+                                     initializer='zero',
+                                     name='{}_b'.format(self.name),
+                                     regularizer=self.b_regularizer,
+                                     constraint=self.b_constraint)
+
+        self.u = self.add_weight((input_shape[-1],),
+                                 initializer=self.init,
+                                 name='{}_u'.format(self.name),
+                                 regularizer=self.u_regularizer,
+                                 constraint=self.u_constraint)
+
+        super(AttentionWithContext, self).build(input_shape)
+
+    def compute_mask(self, input, input_mask=None):
+        # do not pass the mask to the next layers
+        return None
 
     def call(self, x, mask=None):
-        eij = K.tanh(K.dot(x, self.W))
+        uit = K.dot(x, self.W)
 
-        ai = K.exp(eij)
-        weights = ai / K.sum(ai, axis=1).dimshuffle(0, 'x')
+        if self.bias:
+            uit += self.b
 
-        weighted_input = x * weights.dimshuffle(0, 1, 'x')
-        return weighted_input.sum(axis=1)
+        uit = K.tanh(uit)
+        mul_a = uit * self.u  # with this
+        ait = K.sum(mul_a, axis=2)  # and this
+
+        a = K.exp(ait)
+
+        # apply mask after the exp. will be re-normalized next
+        if mask is not None:
+            # Cast the mask to floatX to avoid float64 upcasting in theano
+            a *= K.cast(mask, K.floatx())
+
+        # in some cases especially in the early stages of training the sum may be almost zero
+        # and this results in NaN's. A workaround is to add a very small positive number ε to the sum.
+        # a /= K.cast(K.sum(a, axis=1, keepdims=True), K.floatx())
+        a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())
+
+        a = K.expand_dims(a)
+        weighted_input = x * a
+        return K.sum(weighted_input, axis=1)
 
     def get_output_shape_for(self, input_shape):
         return input_shape[0], input_shape[-1]
 
 if __name__ == "__main__":
-    from keras.models import Sequential
+    from keras.models import Model
+    from keras.layers import Input, Embedding, Bidirectional, TimeDistributed, GRU, Dense
     import numpy as np
 
-    model = Sequential()
-    model.add(AttLayer(input_shape=[2,3]))
-    input_array = np.random.randint(3, size=(32, 10))
+    input_array = np.random.randint(25, size=(15, 100))
+    embedding_layer = Embedding(25 + 1,
+                                100,
+                                input_length=100,
+                                trainable=True)
+    sentence_input = Input(shape=(100,), dtype='int32')
+    embedded_sequences = embedding_layer(sentence_input)
+    l_lstm = Bidirectional(GRU(100, return_sequences=True))(embedded_sequences)
+    l_dense = TimeDistributed(Dense(200))(l_lstm)
+    l_att = AttentionWithContext()(l_dense)
+    model = Model(sentence_input, l_att)
+    # model = Model(sentence_input, l_dense)
     model.compile('rmsprop', 'mse')
     output_array = model.predict(input_array)
-    assert output_array.shape == (32, 10, 4, 5)
+    print(output_array.shape)
