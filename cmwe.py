@@ -89,7 +89,7 @@ if __name__ == "__main__":
     with tf.Graph().as_default(), tf.Session() as session:
         with tf.device("/cpu:0"):
             (words, counts, words_per_epoch, _epoch, _words, examples,
-             labels, contexts) = word2vec.context_skipgram_word2vec(filename="test.corpus",
+             labels, contexts) = word2vec.full_context_skipgram_word2vec(filename="test.corpus",
                                                                     batch_size=opts.batch_size,
                                                                     window_size=opts.window_size,
                                                                     min_count=1,

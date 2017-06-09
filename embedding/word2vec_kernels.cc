@@ -24,6 +24,7 @@ limitations under the License.
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/util/guarded_philox_random.h"
 
+// Note: context_window is half the context size
 #define CONTEXT_WINDOW 5
 
 namespace tensorflow {
