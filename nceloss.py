@@ -1,7 +1,7 @@
 import tensorflow as tf
 from keras import backend as K
 
-
+# TODO: change to fit the format of keras losses
 def nce_loss(true_logits, sampled_logits, opts, from_logits=True):
     """Build the graph for the NCE loss."""
     # if from_logits is True (default). the logits is expected to be logits tensors. otherwise, probability distribution

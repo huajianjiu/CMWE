@@ -79,6 +79,7 @@ class AttentionWithContext(Layer):
             uit += self.b
 
         uit = K.tanh(uit)
+        # ait = K.dot(uit, self.u)  # replace this
         mul_a = uit * self.u  # with this
         ait = K.sum(mul_a, axis=2)  # and this
 

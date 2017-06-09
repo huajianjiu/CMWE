@@ -26,6 +26,8 @@ limitations under the License.
 
 // Note: context_window is half the context size
 #define CONTEXT_WINDOW 5
+#define CONTEXT_SIZE 2*CONTEXT_WINDOW
+// TODO: read context size and keep it static
 
 namespace tensorflow {
 
