@@ -3,13 +3,13 @@
 # Attention GRU network
 
 from keras import backend as K
-from keras.engine.topology import Layer, InputSpec
-from keras import initializations
+from keras.engine.topology import Layer
+from keras import initializers
 
-
+# TODO: change to fit the cnn-based model
 class AttLayer(Layer):
     def __init__(self, **kwargs):
-        self.init = initializations.get('normal')
+        self.init = initializers.get('normal')
         # self.input_spec = [InputSpec(ndim=3)]
         super(AttLayer, self).__init__(**kwargs)
 
@@ -32,3 +32,14 @@ class AttLayer(Layer):
 
     def get_output_shape_for(self, input_shape):
         return input_shape[0], input_shape[-1]
+
+if __name__ == "__main__":
+    from keras.models import Sequential
+    import numpy as np
+
+    model = Sequential()
+    model.add(AttLayer(input_shape=[2,3]))
+    input_array = np.random.randint(3, size=(32, 10))
+    model.compile('rmsprop', 'mse')
+    output_array = model.predict(input_array)
+    assert output_array.shape == (32, 10, 4, 5)

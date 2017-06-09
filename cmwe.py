@@ -19,10 +19,6 @@ from keras.layers import Dense, Input, Flatten
 from keras.layers import Conv1D, MaxPooling1D, Embedding, Merge, Dropout, LSTM, GRU, Bidirectional
 from keras.models import Model
 
-from keras import backend as K
-from keras.engine.topology import Layer, InputSpec
-from keras import initializations
-
 from embedding.word2vec import word2vec, Word2Vec
 from embedding.word2vec import Options as Options_
 from mulembedding import MulEmbedding
@@ -84,14 +80,58 @@ class Options(Options_):
         self.pretrained_emb = FLAGS.pretrained_emb
 
 
-if __name__ == "__main__":
+def main(_):
     opts = Options()
     with tf.Graph().as_default(), tf.Session() as session:
         with tf.device("/cpu:0"):
             (words, counts, words_per_epoch, _epoch, _words, examples,
              labels, contexts) = word2vec.full_context_skipgram_word2vec(filename="test.corpus",
-                                                                    batch_size=opts.batch_size,
-                                                                    window_size=opts.window_size,
-                                                                    min_count=1,
-                                                                    subsample=1e-4)
+                                                                         batch_size=opts.batch_size,
+                                                                         window_size=opts.window_size,
+                                                                         min_count=opts.min_count,
+                                                                         subsample=opts.subsample)
             (vocab, a, b, c) = session.run([words, examples, labels, contexts])
+
+    _id2word = vocab
+    _word2id = {}
+    for i, w in enumerate(_id2word):
+        _word2id[w] = i
+
+    # create single prototype embedding layer
+    if opts.pretrained_emb is None:
+        single_embedding_layer = Embedding(input_dim=len(vocab) + 1,
+                                           output_dim=opts.emb_dim,
+                                           input_length=opts.batch_size,
+                                           trainable=True)
+    else:
+        single_embeddings_index = {}
+        f = open(opts.pretrained_emb)
+        for line in f:
+            values = line.split()
+            word = values[0]
+            coefs = np.asarray(values[1:], dtype='float32')
+            single_embeddings_index[word] = coefs
+        f.close()
+
+        print('Found %s pre-trained word vectors.' % len(single_embeddings_index))
+
+        single_embedding_matrix = np.zeros((len(vocab) + 1, opts.emb_dim))
+        for i, word in enumerate(vocab):
+            embedding_vector = single_embeddings_index.get(word)
+            if embedding_vector is not None:
+                # words not found in embedding index will be all-zeros.
+                single_embedding_matrix[i] = embedding_vector
+
+        single_embedding_layer = Embedding(len(vocab) + 1,
+                                           opts.emb_dim,
+                                           weights=[single_embedding_matrix],
+                                           input_length=opts.batch_size,
+                                           trainable=False)
+
+    # create multiple prototype embedding layer
+    multiple_embedding_layer = MulEmbedding(input_dim=len(vocab)+1,
+                                            output_prototypes=opts.prototypes,
+                                            output_dim=opts.emb_dim,
+                                            input_length=opts.batch_size,
+                                            trainable=True)
+
