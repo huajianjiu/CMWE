@@ -406,7 +406,7 @@ class Word2Vec(object):
 
     last_words, last_time, last_summary_time = initial_words, time.time(), 0
     last_checkpoint_time = 0
-    while True:
+    while True:epoch
       time.sleep(opts.statistics_interval)  # Reports our progress once a while.
       (epoch, step, loss, words, lr) = self._session.run(
           [self._epoch, self.global_step, self._loss, self._words, self._lr])

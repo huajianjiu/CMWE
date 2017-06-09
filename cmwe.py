@@ -67,7 +67,6 @@ flags.DEFINE_integer("context_size", 10,
 flags.DEFINE_integer("rnn_time_steps", 10,
                      "The time steps for the rnn.")
 
-
 FLAGS = flags.FLAGS
 
 
@@ -92,12 +91,10 @@ class Options(object):
         self.context_size = FLAGS.context_size
         self.time_steps = FLAGS.rnn_time_steps
 
-# TODO: As i do not know how to make the keras auto use the tensorflow data gatherer
-# TODO: so I need to do it in keras way
-# TODO: fix the rank 3 2 error (maybe caused by the problem of the tensorflow gatherer
 
 def main():
-    word2vec = tf.load_op_library(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'embedding/word2vec_ops.so'))
+    word2vec = tf.load_op_library(
+        os.path.join(os.path.dirname(os.path.realpath(__file__)), 'embedding/word2vec_ops.so'))
     opts = Options()
     with tf.Graph().as_default(), tf.Session() as session:
         with tf.device("/cpu:0"):
@@ -107,19 +104,24 @@ def main():
                                                                          window_size=opts.window_size,
                                                                          min_count=opts.min_count,
                                                                          subsample=opts.subsample)
-            (vocab, input_words, target_labels, input_contexts) = \
-                session.run([words, examples, labels, contexts])
+            (vocab) = \
+                session.run([words])
 
     _id2word = vocab
     _word2id = {}
     for i, w in enumerate(_id2word):
         _word2id[w] = i
 
+    # For unittest
+    # vocab = range(25)
+    # input_words = np.random.randint(25, size=(opts.batch_size,))
+    # input_contexts = np.random.randint(25, size=(opts.batch_size, opts.context_size))
+
     # create single prototype embedding layer
     if opts.pretrained_emb is None:
         single_embedding_layer = Embedding(input_dim=len(vocab) + 1,
                                            output_dim=opts.emb_dim,
-                                           input_length=opts.batch_size,
+                                           input_length=opts.context_size,
                                            trainable=True)
     else:
         single_embeddings_index = {}
@@ -155,29 +157,44 @@ def main():
 
     # batch word input
     # [batch_size, ]
-    batch_word_input = Input(shape=(opts.batch_size,), dtype='int32')
+    word_input = Input(shape=(1,), dtype='int32')
     # [batch_size, prototypes, emb_dim]
-    multiple_embeded_batch = multiple_embedding_layer(batch_word_input)
+    multiple_embeded_batch = multiple_embedding_layer(word_input)
 
     # batch context input
     # [batch_size, context_size]
-    batch_context_input = Input(shape=(opts.batch_size, opts.context_size))
-    embedded_batch_context = single_embedding_layer(batch_context_input)
+    context_input = Input(shape=(opts.context_size,))
+    embedded_batch_context = single_embedding_layer(context_input)
     l_lstm = Bidirectional(GRU(opts.time_steps, return_sequences=True))(embedded_batch_context)
     # [batch_size, prototypes]
     l_dense = TimeDistributed(Dense(opts.prototypes))(l_lstm)
     l_att = AttentionWithContext()(l_dense)
 
     # get final embedding
-    embedding_dot = Dot(axes=[1,1])
-    final_embedding = Dot([multiple_embeded_batch, l_att])
+    embedding_dot = Dot(axes=[1, 1])
+    # TODO: value error here
+    final_embedding = embedding_dot([multiple_embeded_batch, l_att])
 
-    model = Model(inputs=[batch_word_input, batch_context_input],
+    # TODO: Loop in batch and epoch.
+    # TODO: Note: a new epoch start only when the data gatherer returns a new epoch number
+
+
+    # For unittest
+    model = Model(inputs=[word_input, context_input],
                   outputs=[final_embedding])
     model.compile('rmsprop', 'mse')
     output_array = model.predict([input_words, input_contexts])
     print(output_array[0].shape)
+    # model = Model(context_input, l_att)
+    # # model = Model(sentence_input, l_dense)
+    # model.compile('rmsprop', 'mse')
+    # output_array = model.predict(input_contexts)
+    # print(output_array.shape)
+    # TODO: a evaluation model use the same layer
+
+    # TODO: i need to build another model and input a vocab to get all the embeddings
+    # TODO: see https://keras.io/getting-started/faq/#how-can-i-obtain-the-output-of-an-intermediate-layer
+
 
 if __name__ == "__main__":
     main()
-
