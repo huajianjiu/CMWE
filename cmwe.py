@@ -38,7 +38,7 @@ flags.DEFINE_string(
     "eval_data", None, "Analogy questions. "
                        "See README.md for how to get 'questions-words.txt'.")
 flags.DEFINE_string(
-    "pretrained_emb", "embedding/glove.6B.100d.txt",
+    "pretrained_emb", None,
     "Pretrained single prototype word embedding data."
 )
 flags.DEFINE_integer("embedding_size", 100, "The embedding dimension size.")
@@ -85,12 +85,13 @@ class Options(Options_):
 
 
 if __name__ == "__main__":
+    opts = Options()
     with tf.Graph().as_default(), tf.Session() as session:
         with tf.device("/cpu:0"):
             (words, counts, words_per_epoch, _epoch, _words, examples,
              labels, contexts) = word2vec.context_skipgram_word2vec(filename="test.corpus",
-                                                                    batch_size=5,
-                                                                    window_size=3,
+                                                                    batch_size=opts.batch_size,
+                                                                    window_size=opts.window_size,
                                                                     min_count=1,
                                                                     subsample=1e-4)
             (vocab, a, b, c) = session.run([words, examples, labels, contexts])
