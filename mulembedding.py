@@ -44,10 +44,11 @@ class MulEmbedding(Layer):
           This argument is required if you are going to connect
           `Flatten` then `Dense` layers upstream
           (without it, the shape of the dense outputs cannot be computed).
+      is_word_input: to output `(batch_size, prototypes, output_dim)`
     # Input shape
         2D tensor with shape: `(batch_size, sequence_length)`.
     # Output shape
-        3D tensor with shape: `(batch_size, sequence_length, output_dim)`.
+        3D tensor with shape: `(batch_size, sequence_length, prototypes, output_dim)`.
     # References
         - [A Theoretically Grounded Application of Dropout in Recurrent Neural Networks](http://arxiv.org/abs/1512.05287)
     """
@@ -59,6 +60,7 @@ class MulEmbedding(Layer):
                  embeddings_constraint=None,
                  mask_zero=False,
                  input_length=None,
+                 is_word_input=False,
                  **kwargs):
         kwargs['dtype'] = 'int32'
         if 'input_shape' not in kwargs:
@@ -77,6 +79,7 @@ class MulEmbedding(Layer):
         self.embeddings_constraint = constraints.get(embeddings_constraint)
         self.mask_zero = mask_zero
         self.input_length = input_length
+        self.is_word_input = is_word_input
 
     def build(self, input_shape):
         self.embeddings = self.add_weight(
@@ -95,7 +98,10 @@ class MulEmbedding(Layer):
 
     def compute_output_shape(self, input_shape):
         if self.input_length is None:
-            return input_shape + (self.output_prototypes,) + (self.output_dim,)
+            if self.is_word_input:
+                return input_shape[0], self.output_prototypes, self.output_dim
+            else:
+                return input_shape + (self.output_prototypes,) + (self.output_dim,)
         else:
             # input_length can be tuple if input is 3D or higher
             if isinstance(self.input_length, (list, tuple)):
@@ -118,6 +124,8 @@ class MulEmbedding(Layer):
         if K.dtype(inputs) != 'int32':
             inputs = K.cast(inputs, 'int32')
         out = K.gather(self.embeddings, inputs)
+        if self.is_word_input:
+            out = K.reshape(out, shape=[K.shape(out)[0], K.shape(out)[2], K.shape(out)[3]])
         return out
 
     def get_config(self):
@@ -133,13 +141,25 @@ class MulEmbedding(Layer):
         base_config = super(MulEmbedding, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
+
 if __name__ == "__main__":
     from keras.models import Sequential
     import numpy as np
 
-    model = Sequential()
-    model.add(MulEmbedding(input_dim=3, output_prototypes=4, output_dim=5))
+    model1 = Sequential()
+    model1.add(MulEmbedding(input_dim=3, output_prototypes=4, output_dim=5, is_word_input=False))
+    model1.compile('rmsprop', 'mse')
     input_array = np.random.randint(3, size=(32, 10))
-    model.compile('rmsprop', 'mse')
-    output_array = model.predict(input_array)
+    output_array = model1.predict(input_array)
+    print(output_array.shape)
     assert output_array.shape == (32, 10, 4, 5)
+
+    model2 = Sequential()
+    model2.add(MulEmbedding(input_dim=3, output_prototypes=4, output_dim=5, is_word_input=True))
+    model2.compile('rmsprop', 'mse')
+    input_array = np.random.randint(3, size=(2,))
+    output_array = model2.predict(input_array)
+    print("output shape:{0}".format(output_array.shape))
+    print("output type:{0}".format(output_array.__class__))
+    print("output: \n{0}".format(output_array))
+    assert output_array.shape == (2, 4, 5)

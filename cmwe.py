@@ -22,6 +22,7 @@ from keras.models import Model
 
 from mulembedding import MulEmbedding
 from attention import AttentionWithContext
+from embeddingdot import EmbeddingDot
 
 flags = tf.app.flags
 
@@ -92,11 +93,11 @@ class Options(object):
         self.time_steps = FLAGS.rnn_time_steps
 
 
-def main():
+def data_reader_ts(opts):
+    # return tensorflow tensors
     word2vec = tf.load_op_library(
         os.path.join(os.path.dirname(os.path.realpath(__file__)), 'embedding/word2vec_ops.so'))
-    opts = Options()
-    with tf.Graph().as_default(), tf.Session() as session:
+    with tf.Graph().as_default():
         with tf.device("/cpu:0"):
             (words, counts, words_per_epoch, _epoch, _words, examples,
              labels, contexts) = word2vec.full_context_skipgram_word2vec(filename=opts.train_data,
@@ -104,19 +105,14 @@ def main():
                                                                          window_size=opts.window_size,
                                                                          min_count=opts.min_count,
                                                                          subsample=opts.subsample)
-            (vocab) = \
-                session.run([words])
+            # (vocab) = \
+            #     session.run([words])
+    return (words, counts, words_per_epoch, _epoch, _words, examples,
+            labels, contexts)
 
-    _id2word = vocab
-    _word2id = {}
-    for i, w in enumerate(_id2word):
-        _word2id[w] = i
 
-    # For unittest
-    # vocab = range(25)
-    # input_words = np.random.randint(25, size=(opts.batch_size,))
-    # input_contexts = np.random.randint(25, size=(opts.batch_size, opts.context_size))
-
+def build_final_embedding(opts, word_input, context_input):
+    vocab = opts.vocab
     # create single prototype embedding layer
     if opts.pretrained_emb is None:
         single_embedding_layer = Embedding(input_dim=len(vocab) + 1,
@@ -145,56 +141,89 @@ def main():
         single_embedding_layer = Embedding(len(vocab) + 1,
                                            opts.emb_dim,
                                            weights=[single_embedding_matrix],
-                                           input_length=opts.batch_size,
+                                           input_length=opts.context_size,
                                            trainable=False)
 
     # create multiple prototype embedding layer
     multiple_embedding_layer = MulEmbedding(input_dim=len(vocab) + 1,
                                             output_prototypes=opts.prototypes,
                                             output_dim=opts.emb_dim,
-                                            input_length=opts.batch_size,
+                                            input_length=None,
+                                            is_word_input=True,
                                             trainable=True)
 
-    # batch word input
-    # [batch_size, ]
-    word_input = Input(shape=(1,), dtype='int32')
     # [batch_size, prototypes, emb_dim]
-    multiple_embeded_batch = multiple_embedding_layer(word_input)
+    multiple_embeded = multiple_embedding_layer(word_input)
 
-    # batch context input
-    # [batch_size, context_size]
-    context_input = Input(shape=(opts.context_size,))
-    embedded_batch_context = single_embedding_layer(context_input)
-    l_lstm = Bidirectional(GRU(opts.time_steps, return_sequences=True))(embedded_batch_context)
+    embedded_context = single_embedding_layer(context_input)
+    l_lstm = Bidirectional(GRU(opts.time_steps, return_sequences=True))(embedded_context)
     # [batch_size, prototypes]
     l_dense = TimeDistributed(Dense(opts.prototypes))(l_lstm)
     l_att = AttentionWithContext()(l_dense)
 
     # get final embedding
-    embedding_dot = Dot(axes=[1, 1])
-    # TODO: value error here
-    final_embedding = embedding_dot([multiple_embeded_batch, l_att])
+    embedding_dot = EmbeddingDot(axes=[1, 1])
+    final_embedding = embedding_dot([multiple_embeded, l_att])
+
+    return final_embedding
+
+
+def main():
+    opts = Options()
+    session = tf.Session()
+
+    (words, counts, words_per_epoch, _epoch, _words, examples,
+     labels, contexts) = data_reader_ts(opts)
+
+    (opts.vocab) = session.run([words])
+
+    _id2word = vocab = opts.vocab
+    _word2id = {}
+    for i, w in enumerate(_id2word):
+        _word2id[w] = i
+
+    # batch word input
+    # [batch_size, ]
+    word_input = Input(shape=(1,), dtype='int32')
+    # batch context input
+    # [batch_size, context_size]
+    context_input = Input(shape=(opts.context_size,))
+
+    final_embedding = build_final_embedding(opts, word_input, context_input)
 
     # TODO: Loop in batch and epoch.
     # TODO: Note: a new epoch start only when the data gatherer returns a new epoch number
+    # TODO: maybe i need to use tensorflow optimizer to use nce loss
 
-
-    # For unittest
-    model = Model(inputs=[word_input, context_input],
-                  outputs=[final_embedding])
-    model.compile('rmsprop', 'mse')
-    output_array = model.predict([input_words, input_contexts])
-    print(output_array[0].shape)
-    # model = Model(context_input, l_att)
-    # # model = Model(sentence_input, l_dense)
-    # model.compile('rmsprop', 'mse')
-    # output_array = model.predict(input_contexts)
-    # print(output_array.shape)
     # TODO: a evaluation model use the same layer
 
     # TODO: i need to build another model and input a vocab to get all the embeddings
     # TODO: see https://keras.io/getting-started/faq/#how-can-i-obtain-the-output-of-an-intermediate-layer
 
 
+def test_unit():
+    opts = Options()
+    # For unittest
+    opts.vocab = range(25)
+    input_words = np.random.randint(25, size=(opts.batch_size,))
+    input_contexts = np.random.randint(25, size=(opts.batch_size, opts.context_size))
+
+    # batch word input
+    # [batch_size, ]
+    word_input = Input(shape=(1,), dtype='int32')
+    # batch context input
+    # [batch_size, context_size]
+    context_input = Input(shape=(opts.context_size,))
+
+    final_embedding = build_final_embedding(opts, word_input, context_input)
+
+    model = Model(inputs=[word_input, context_input],
+                  outputs=[final_embedding])
+    model.compile('rmsprop', 'mse')
+    output_array = model.predict([input_words, input_contexts])
+    print(output_array[0].shape)
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    test_unit()

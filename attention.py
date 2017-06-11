@@ -99,7 +99,7 @@ class AttentionWithContext(Layer):
         weighted_input = x * a
         return K.sum(weighted_input, axis=1)
 
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         return input_shape[0], input_shape[-1]
 
 if __name__ == "__main__":
