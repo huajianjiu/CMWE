@@ -12,6 +12,7 @@ import tensorflow as tf
 import os, re
 import pandas as pd
 from bs4 import BeautifulSoup
+import json
 
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
@@ -288,9 +289,8 @@ def read_text_classification_task_data(opts):
         string = re.sub(r"\"", "", string)
         return string.strip().lower()
 
-    data_train = pd.read_csv('~/Testground/data/imdb/labeledTrainData.tsv', sep='\t')
-    print
-    data_train.shape
+    data_train = json.load(open('~/IMDB10/data.json'))
+    # TODO: to read the data from the json
 
     from nltk import tokenize
 
