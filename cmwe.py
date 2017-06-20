@@ -456,6 +456,7 @@ def text_classification_task():
     model.fit(x_train, y_train, validation_data=(x_val, y_val),
               nb_epoch=10, batch_size=50)
 
+
 def test_final_embedding_unit():
     opts = Options()
     # For unittest
