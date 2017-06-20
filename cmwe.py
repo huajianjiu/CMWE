@@ -13,6 +13,7 @@ import os, re
 import pandas as pd
 from bs4 import BeautifulSoup
 import json
+from keras import backend as K
 
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
@@ -53,8 +54,8 @@ flags.DEFINE_float("learning_rate", 0.2, "Initial learning rate.")
 flags.DEFINE_integer("num_neg_samples", 100,
                      "Negative samples per training example.")
 flags.DEFINE_integer("batch_size", 16,
-                     "Numbers of training examples each step processes "
-                     "(no minibatching).")
+                     "Numbers of training examples each step processes."
+                     "(no minibatching). Not used for classification task.")
 flags.DEFINE_integer("concurrent_steps", 12,
                      "The number of concurrent training steps.")
 flags.DEFINE_integer("window_size", 5,
@@ -95,6 +96,12 @@ class Options(object):
         self.prototypes = FLAGS.prototypes
         self.pretrained_emb = FLAGS.pretrained_emb
         self.context_size = FLAGS.context_size
+        self.MAX_SENT_LENGTH = 100
+        self.MAX_SENTS = 15
+        self.MAX_NUM_WORDS = 20000  # Maximum number of words to work with
+        # (if set, tokenization will be restricted to the top
+        # num_words most common words in the dataset).
+        self.VALIDATION_SPLIT = 0.2
 
 
 def data_reader_ts(opts):
@@ -164,8 +171,69 @@ def build_final_embedding(opts, word_inputs, context_inputs):
     l_att = AttentionWithContext()(l_dense)
     #
     # get final embedding
-    embedding_dot = EmbeddingDot(axes=[1, 1])
+    embedding_dot = Dot(axes=[1, 1])
     final_embedding = embedding_dot([multiple_embeded, l_att])
+
+    return final_embedding
+
+
+def build_final_embedding_from_sentence(opts, sentence_input):
+    vocab = opts.vocab
+    # create single prototype embedding layer
+    if opts.pretrained_emb is None:
+        single_embedding_layer = Embedding(input_dim=opts.vocab_size,
+                                           output_dim=opts.emb_dim,
+                                           input_length=opts.MAX_SENT_LENGTH,
+                                           trainable=True)
+    else:
+        single_embeddings_index = {}
+        f = open(opts.pretrained_emb)
+        for line in f:
+            values = line.split()
+            word = values[0]
+            coefs = np.asarray(values[1:], dtype='float32')
+            single_embeddings_index[word] = coefs
+        f.close()
+
+        print('Found %s pre-trained word vectors.' % len(single_embeddings_index))
+
+        single_embedding_matrix = np.zeros((len(vocab) + 1, opts.emb_dim))
+        for i, word in enumerate(vocab):
+            embedding_vector = single_embeddings_index.get(word)
+            if embedding_vector is not None:
+                # words not found in embedding index will be all-zeros.
+                single_embedding_matrix[i] = embedding_vector
+
+        single_embedding_layer = Embedding(opts.vocab_size,
+                                           opts.emb_dim,
+                                           weights=[single_embedding_matrix],
+                                           input_length=opts.MAX_SENT_LENGTH,
+                                           trainable=True)
+
+    # create multiple prototype embedding layer
+    multiple_embedding_layer = MulEmbedding(input_dim=opts.vocab_size,
+                                            output_prototypes=opts.prototypes,
+                                            output_dim=opts.emb_dim,
+                                            is_word_input=False,
+                                            trainable=True)
+
+    multiple_embeded = multiple_embedding_layer(sentence_input)  # [batch_size, sentence_len, prototypes, emb]
+    embedded_context = single_embedding_layer(sentence_input)
+    l_gru_emb = Bidirectional(GRU(opts.emb_dim, return_sequences=True))(embedded_context)  # [batch_size, sentence_len, emb*2]
+    l_dense_emb = TimeDistributed(Dense(opts.prototypes))(l_gru_emb)  # [batch_size, sentence_len, protptyes]
+    l_att_emb = AttentionWithContext()(l_dense_emb)  #[batch_size, prototypes]
+
+    # Note: The following has moved into embeddingdot. June 20, 2017
+    # repeat l_att for broadcasting because tf cannot automatically do it for this case
+    # l_att_tile = K.tile(l_att, [1, opts.MAX_SENT_LENGTH])
+    # l_att= K.reshape(l_att_tile,
+    #                    [tf.shape(l_att)[0],
+    #                     opts.MAX_SENT_LENGTH, opts.prototypes])
+    #
+    # get final embedding
+    embedding_dot = EmbeddingDot(axes=[1, 2], sen_len=opts.MAX_SENT_LENGTH,
+                                 proto=opts.prototypes)
+    final_embedding = embedding_dot([l_att_emb, multiple_embeded])
 
     return final_embedding
 
@@ -271,14 +339,15 @@ def word_embedding_task():
     # TODO: see https://keras.io/getting-started/faq/#how-can-i-obtain-the-output-of-an-intermediate-layer
 
 
-def read_text_classification_task_data(opts):
-    # TODO: check if it is ok for fine-grained task
+def read_imdb_10class_task_data(opts):
+    # for fine-grained IMDB review task
     MAX_SENT_LENGTH = opts.MAX_SENT_LENGTH
     MAX_SENTS = opts.MAX_SENTS
     MAX_NUM_WORDS = opts.MAX_NUM_WORDS # Maximum number of words to work with
                           # (if set, tokenization will be restricted to the top
                           # num_words most common words in the dataset).
     VALIDATION_SPLIT = opts.VALIDATION_SPLIT
+
     def clean_str(string):
         """
         Tokenization/string cleaning for dataset
@@ -289,25 +358,25 @@ def read_text_classification_task_data(opts):
         string = re.sub(r"\"", "", string)
         return string.strip().lower()
 
-    data_train = json.load(open('~/IMDB10/data.json'))
-    # TODO: to read the data from the json
+    data_train = json.load(open('/home/yuanzhike/IMDB10/data.json'))
 
+    print('start reading {0}'.format('/home/yuanzhike/IMDB10/data.json'))
     from nltk import tokenize
 
     reviews = []
     labels = []
     texts = []
 
-    for idx in range(data_train.review.shape[0]):
-        text = BeautifulSoup(data_train.review[idx])
-        text = clean_str(text.get_text().encode('ascii', 'ignore'))
+    for idx, review_object in enumerate(data_train):
+        text = review_object['review']
+        text = clean_str(text.encode('ascii', 'ignore').decode('ascii'))
         texts.append(text)
         sentences = tokenize.sent_tokenize(text)
         reviews.append(sentences)
 
-        labels.append(data_train.sentiment[idx])
+        labels.append(review_object['rating'])
 
-    tokenizer = Tokenizer(nb_words=MAX_NUM_WORDS)
+    tokenizer = Tokenizer(num_words=MAX_NUM_WORDS)
     tokenizer.fit_on_texts(texts)
 
     data = np.zeros((len(texts), MAX_SENTS, MAX_SENT_LENGTH), dtype='int32')
@@ -349,36 +418,43 @@ def read_text_classification_task_data(opts):
 
 def text_classification_task():
     opts = Options()
-    opts.MAX_SENT_LENGTH = MAX_SENT_LENGTH = 100
-    opts.MAX_SENTS = MAX_SENTS = 15
-    opts.MAX_NUM_WORDS = MAX_NUM_WORDS = 20000 # Maximum number of words to work with
-                          # (if set, tokenization will be restricted to the top
-                          # num_words most common words in the dataset).
-    opts.VALIDATION_SPLIT = VALIDATION_SPLIT = 0.2
+
+    read_text_classification_task_data = read_imdb_10class_task_data
 
     # Read data
     if opts.pretrained_emb is None:
-        opts.pretrained_emb = "/home/ke/data/glove/glove.6B.100d.txt"
+        opts.pretrained_emb = "/home/yuanzhike/data/glove/glove.6B.100d.txt"
 
     (word_index, x_train, y_train, x_val, y_val) = \
         read_text_classification_task_data(opts)
 
     opts.vocab_size = len(word_index) + 1
 
-    sentence_input = Input(shape=(MAX_SENT_LENGTH,), dtype='int32')
+    sentence_input = Input(shape=(opts.MAX_SENT_LENGTH,), dtype='int32')
+    review_input = Input(shape=(opts.MAX_SENTS, opts.MAX_SENT_LENGTH), dtype='int32')
+
+    embedded_sequences = build_final_embedding(opts, sentence_input)
+
+    l_gru_w = Bidirectional(GRU(100, return_sequences=True))(embedded_sequences)
+    l_dense_w = TimeDistributed(Dense(200))(l_gru_w)
+    l_att_w = AttentionWithContext()(l_dense_w)
+    sentEncoder = Model(sentence_input, l_att_w)
+
     review_input = Input(shape=(MAX_SENTS, MAX_SENT_LENGTH), dtype='int32')
+    review_encoder = TimeDistributed(sentEncoder)(review_input)
+    l_gru_sent = Bidirectional(GRU(100, return_sequences=True))(review_encoder)
+    l_dense_sent = TimeDistributed(Dense(200))(l_gru_sent)
+    l_att_sent = AttentionWithContext()(l_dense_sent)
+    preds = Dense(11, activation='softmax')(l_att_sent)
+    model = Model(review_input, preds)
 
-    # TODO: test if the two input holder above safely changes to multi-prototype
-    # TODO: build and compile CMWE-HATT model
-    # batch word input
-    # [batch_size, ]
-    word_inputs = Input(batch_shape=(opts.batch_size, 1), dtype='int32')
-    # batch context input
-    # [batch_size, context_size]
-    context_inputs = Input(batch_shape=(opts.batch_size, opts.context_size))
+    model.compile(loss='categorical_crossentropy',
+                  optimizer='rmsprop',
+                  metrics=['acc'])
 
-    final_embedding = build_final_embedding(opts, word_inputs, context_inputs)
-
+    print("model fitting - Hierachical attention network")
+    model.fit(x_train, y_train, validation_data=(x_val, y_val),
+              nb_epoch=10, batch_size=50)
 
 def test_final_embedding_unit():
     opts = Options()
@@ -404,6 +480,34 @@ def test_final_embedding_unit():
     print(output_array.shape)
 
 
+def test_final_embedding_from_sentence():
+    opts = Options()
+    # For unittest
+    opts.vocab = range(25)
+    opts.vocab_size = 25
+    input_contexts = np.random.randint(25, size=(32, opts.MAX_SENT_LENGTH))
+
+    # batch context input
+    # [batch_size, context_size]
+    context_inputs = Input(batch_shape=(32, opts.MAX_SENT_LENGTH))
+
+    final_embedding = build_final_embedding_from_sentence(opts, context_inputs)
+
+    model = Model(inputs=[context_inputs],
+                  outputs=[final_embedding])
+    model.compile('rmsprop', 'mse')
+    output_array = model.predict([input_contexts])
+    print(output_array.shape)
+
+
+def test_read_data():
+    opts = Options()
+    read_imdb_10class_task_data(opts)
+
+
 if __name__ == "__main__":
     # main()
-    test_final_embedding_unit()
+    # test_final_embedding_unit()
+    # test_read_data()
+    # test_final_embedding_from_sentence()
+    text_classification_task()

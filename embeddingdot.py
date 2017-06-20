@@ -1,9 +1,12 @@
 from keras.layers.merge import _Merge
 from keras import backend as K
+from keras.backend.tensorflow_backend import ndim, expand_dims
+import tensorflow as tf
+from keras.layers import TimeDistributed
 
 
 class EmbeddingDot(_Merge):
-    def __init__(self, axes, normalize=False, **kwargs):
+    def __init__(self, axes, sen_len, proto, normalize=False, **kwargs):
         super(EmbeddingDot, self).__init__(**kwargs)
         if not isinstance(axes, int):
             if not isinstance(axes, (list, tuple)):
@@ -16,6 +19,8 @@ class EmbeddingDot(_Merge):
                 raise ValueError('Invalid format for `axes` - '
                                  'list elements should be "int".')
         self.axes = axes
+        self.sen_len = sen_len
+        self.proto = proto
         self.normalize = normalize
         self.supports_masking = True
 
@@ -59,6 +64,11 @@ class EmbeddingDot(_Merge):
         if self.normalize:
             x1 = K.l2_normalize(x1, axis=axes[0])
             x2 = K.l2_normalize(x2, axis=axes[1])
+        # print(x1)
+        # repeat l_att for broadcasting because tf cannot automatically do it for this case
+        x1_tile = K.tile(x1, [1, self.sen_len])
+        x1 = K.reshape(x1_tile, [tf.shape(x1)[0], self.sen_len, self.proto])
+        axes[0] += 1
         output = K.batch_dot(x1, x2, axes)
         return output
 
@@ -93,3 +103,62 @@ class EmbeddingDot(_Merge):
         }
         base_config = super(EmbeddingDot, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+def batch_dot_sen(x, y, axes=None):
+    """Batchwise dot product.
+    ```python
+        >>> x_batch = K.ones(shape=(32, 20))
+        >>> y_batch = K.ones(shape=(32, 30, 20, 50))
+        >>> xy_batch_dot = K.batch_dot(x_batch, y_batch, axes=[1, 2])
+        >>> K.int_shape(xy_batch_dot)
+        (32, 30, 50)
+    ```
+    """
+    if isinstance(axes, int):
+        axes = (axes, axes)
+    x_ndim = ndim(x)
+    y_ndim = ndim(y)
+    if x_ndim > y_ndim:
+        diff = x_ndim - y_ndim
+        y = tf.reshape(y, tf.concat([tf.shape(y), [1] * (diff)], axis=0))
+    elif y_ndim > x_ndim:
+        diff = y_ndim - x_ndim
+        x = tf.reshape(x, tf.concat([tf.shape(x), [1] * (diff)], axis=0))
+    else:
+        diff = 0
+    if ndim(x) == 2 and ndim(y) == 2:
+        if axes[0] == axes[1]:
+            out = tf.reduce_sum(tf.multiply(x, y), axes[0])
+        else:
+            out = tf.reduce_sum(tf.multiply(tf.transpose(x, [1, 0]), y), axes[1])
+    else:
+        if axes is not None:
+            adj_x = None if axes[0] == ndim(x) - 1 else True
+            adj_y = True if axes[1] == ndim(y) - 1 else None
+        else:
+            adj_x = None
+            adj_y = None
+        print(adj_x, adj_y)
+        out = tf.matmul(x, y, adjoint_a=adj_x, adjoint_b=adj_y)
+    if diff:
+        if x_ndim > y_ndim:
+            idx = x_ndim + y_ndim - 3
+        else:
+            idx = x_ndim - 1
+        out = tf.squeeze(out, list(range(idx, idx + diff)))
+    if ndim(out) == 1:
+        out = expand_dims(out, 1)
+    return out
+
+if __name__ == "__main__":
+    import numpy as np
+    x_batch = tf.constant(np.ones(shape=(32, 20)))
+    # issue: broadcast .20 (x[1]) to each 30(y[1])
+    # reshape following tile
+    x_batch = tf.tile(x_batch, [1, 30])
+    x_batch = tf.reshape(x_batch, [32, 30, 20])
+    y_batch = tf.constant(np.ones(shape=(32, 30, 20, 50)))
+    xy_batch_dot = K.batch_dot(x_batch, y_batch, axes=[1, 2])
+    K.int_shape(xy_batch_dot)
+    print(tf.Session().run(xy_batch_dot).shape)  # need to be 32, 30, 50
