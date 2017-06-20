@@ -64,8 +64,8 @@ flags.DEFINE_integer("window_size", 5,
 flags.DEFINE_integer("min_count", 5,
                      "The minimum number of word occurrences for it to be "
                      "included in the vocabulary.")
-flags.DEFINE_integer("prototypes", 20,
-                     "The number of prototypes of each word.")
+flags.DEFINE_integer("prototypes", 5,
+                     "The number of prototypes of each word.")  # 20: OOM
 flags.DEFINE_float("subsample", 1e-4,
                    "Subsample threshold for word occurrence. Words that appear "
                    "with higher frequency will be randomly down-sampled. Set "
@@ -177,8 +177,7 @@ def build_final_embedding(opts, word_inputs, context_inputs):
     return final_embedding
 
 
-def build_final_embedding_from_sentence(opts, sentence_input):
-    vocab = opts.vocab
+def build_final_embedding_from_sentence(opts, sentence_input, word_index):
     # create single prototype embedding layer
     if opts.pretrained_emb is None:
         single_embedding_layer = Embedding(input_dim=opts.vocab_size,
@@ -197,8 +196,8 @@ def build_final_embedding_from_sentence(opts, sentence_input):
 
         print('Found %s pre-trained word vectors.' % len(single_embeddings_index))
 
-        single_embedding_matrix = np.zeros((len(vocab) + 1, opts.emb_dim))
-        for i, word in enumerate(vocab):
+        single_embedding_matrix = np.random.random((len(word_index) + 1, opts.emb_dim))
+        for word, i in word_index.items():
             embedding_vector = single_embeddings_index.get(word)
             if embedding_vector is not None:
                 # words not found in embedding index will be all-zeros.
@@ -301,7 +300,7 @@ def train_language_model(opts):
 
 
 def build_HATT_RNN(opts, embedding, sentence_input, review_input):
-    # TODO build HATT model
+    # TODO put the building of HATT model here
     pass
 
 
@@ -409,7 +408,7 @@ def read_imdb_10class_task_data(opts):
     x_val = data[-nb_validation_samples:]
     y_val = labels[-nb_validation_samples:]
 
-    print('Number of reviews for training and test')
+    print('Number of different reviews for training and test')
     print(y_train.sum(axis=0))
     print(y_val.sum(axis=0))
 
@@ -433,14 +432,14 @@ def text_classification_task():
     sentence_input = Input(shape=(opts.MAX_SENT_LENGTH,), dtype='int32')
     review_input = Input(shape=(opts.MAX_SENTS, opts.MAX_SENT_LENGTH), dtype='int32')
 
-    embedded_sequences = build_final_embedding(opts, sentence_input)
+    embedded_sequences = build_final_embedding_from_sentence(opts, sentence_input, word_index)
 
     l_gru_w = Bidirectional(GRU(100, return_sequences=True))(embedded_sequences)
     l_dense_w = TimeDistributed(Dense(200))(l_gru_w)
     l_att_w = AttentionWithContext()(l_dense_w)
     sentEncoder = Model(sentence_input, l_att_w)
 
-    review_input = Input(shape=(MAX_SENTS, MAX_SENT_LENGTH), dtype='int32')
+    review_input = Input(shape=(opts.MAX_SENTS, opts.MAX_SENT_LENGTH), dtype='int32')
     review_encoder = TimeDistributed(sentEncoder)(review_input)
     l_gru_sent = Bidirectional(GRU(100, return_sequences=True))(review_encoder)
     l_dense_sent = TimeDistributed(Dense(200))(l_gru_sent)
