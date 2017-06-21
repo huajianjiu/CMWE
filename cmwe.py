@@ -65,7 +65,7 @@ flags.DEFINE_integer("window_size", 5,
 flags.DEFINE_integer("min_count", 5,
                      "The minimum number of word occurrences for it to be "
                      "included in the vocabulary.")
-flags.DEFINE_integer("prototypes", 5,
+flags.DEFINE_integer("prototypes", 10,
                      "The number of prototypes of each word.")  # 20: OOM
 flags.DEFINE_float("subsample", 1e-4,
                    "Subsample threshold for word occurrence. Words that appear "
@@ -219,7 +219,7 @@ def build_final_embedding_from_sentence(opts, sentence_input, word_index):
                                            input_length=opts.MAX_SENT_LENGTH,
                                            trainable=True)
 
-        multiple_embedding_matrix = np.tile(single_embedding_layer, (1, opts.prototypes))
+        multiple_embedding_matrix = np.tile(single_embedding_matrix, (1, opts.prototypes))
         multiple_embedding_matrix = \
             np.reshape(multiple_embedding_matrix, (len(word_index) + 1, opts.prototypes, opts.emb_dim))
         multiple_embedding_layer = MulEmbedding(input_dim=opts.vocab_size,
@@ -531,5 +531,5 @@ if __name__ == "__main__":
     # main()
     # test_final_embedding_unit()
     # test_read_data()
-    test_final_embedding_from_sentence()
-    # text_classification_task()
+    # test_final_embedding_from_sentence()
+    text_classification_task()
