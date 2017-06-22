@@ -13,6 +13,7 @@ import os, re
 import pandas as pd
 from bs4 import BeautifulSoup
 import json
+from keras import optimizers
 from keras import backend as K
 from datetime import datetime
 
@@ -32,6 +33,8 @@ from embeddingdot import EmbeddingDot
 from keras.preprocessing.text import Tokenizer, text_to_word_sequence
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils.np_utils import to_categorical
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from keras.legacy.layers import Highway
 
 flags = tf.app.flags
 
@@ -46,7 +49,7 @@ flags.DEFINE_string(
     "pretrained_emb", None,
     "Pretrained single prototype word embedding data."
 )
-flags.DEFINE_integer("embedding_size", 200, "The embedding dimension size.")
+flags.DEFINE_integer("embedding_size", 100, "The embedding dimension size.")
 flags.DEFINE_integer(
     "epochs_to_train", 15,
     "Number of epochs to train. Each epoch processes the training data once "
@@ -65,8 +68,8 @@ flags.DEFINE_integer("window_size", 5,
 flags.DEFINE_integer("min_count", 5,
                      "The minimum number of word occurrences for it to be "
                      "included in the vocabulary.")
-flags.DEFINE_integer("prototypes", 10,
-                     "The number of prototypes of each word.")  # 20: OOM
+flags.DEFINE_integer("prototypes", 5,
+                     "The number of prototypes of each word.")  # 6-20: OOM
 flags.DEFINE_float("subsample", 1e-4,
                    "Subsample threshold for word occurrence. Words that appear "
                    "with higher frequency will be randomly down-sampled. Set "
@@ -76,6 +79,9 @@ flags.DEFINE_integer("context_size", 10,
                      "Need to also change it in embeddings/word2vec_kernels.cc now.")
 flags.DEFINE_integer("gru_dimension", 50,
                      "the output dimension of gru units")
+flags.DEFINE_boolean("highway", True,
+                     "If use highway instead of full connected dense for rnn"
+                     "output. default is true.")
 
 FLAGS = flags.FLAGS
 
@@ -106,6 +112,7 @@ class Options(object):
         # num_words most common words in the dataset).
         self.VALIDATION_SPLIT = 0.2
         self.gru_dimension = FLAGS.gru_dimension
+        self.HIGH_WAY = FLAGS.highway
 
 
 def data_reader_ts(opts):
@@ -135,6 +142,12 @@ def build_final_embedding(opts, word_inputs, context_inputs):
                                            output_dim=opts.emb_dim,
                                            input_length=opts.context_size,
                                            trainable=True)
+        # create multiple prototype embedding layer
+        multiple_embedding_layer = MulEmbedding(input_dim=opts.vocab_size,
+                                                output_prototypes=opts.prototypes,
+                                                output_dim=opts.emb_dim,
+                                                is_word_input=True,
+                                                trainable=True)
     else:
         single_embeddings_index = {}
         f = open(opts.pretrained_emb)
@@ -147,7 +160,7 @@ def build_final_embedding(opts, word_inputs, context_inputs):
 
         print('Found %s pre-trained word vectors.' % len(single_embeddings_index))
 
-        single_embedding_matrix = np.zeros((len(vocab) + 1, opts.emb_dim))
+        single_embedding_matrix = np.zeros((len(vocab), opts.emb_dim))
         for i, word in enumerate(vocab):
             embedding_vector = single_embeddings_index.get(word)
             if embedding_vector is not None:
@@ -160,12 +173,15 @@ def build_final_embedding(opts, word_inputs, context_inputs):
                                            input_length=opts.context_size,
                                            trainable=True)
 
-    # create multiple prototype embedding layer
-    multiple_embedding_layer = MulEmbedding(input_dim=opts.vocab_size,
-                                            output_prototypes=opts.prototypes,
-                                            output_dim=opts.emb_dim,
-                                            is_word_input=True,
-                                            trainable=True)
+        multiple_embedding_matrix = np.tile(single_embedding_matrix, (1, opts.prototypes))
+        multiple_embedding_matrix = \
+            np.reshape(multiple_embedding_matrix, (len(vocab), opts.prototypes, opts.emb_dim))
+        multiple_embedding_layer = MulEmbedding(input_dim=opts.vocab_size,
+                                                output_prototypes=opts.prototypes,
+                                                output_dim=opts.emb_dim,
+                                                is_word_input=True,
+                                                weights=[multiple_embedding_matrix],
+                                                trainable=True)
 
     # [batch_size, prototypes, emb_dim]
     multiple_embeded = multiple_embedding_layer(word_inputs)
@@ -315,13 +331,19 @@ def train_language_model(opts):
 
 def build_HATT_RNN(opts, embedded_sequences, sentence_input, review_input):
     l_gru_w = Bidirectional(GRU(opts.gru_dimension, return_sequences=True))(embedded_sequences)
-    l_dense_w = TimeDistributed(Dense(opts.gru_dimension * 2))(l_gru_w)
+    if opts.HIGH_WAY:
+        l_dense_w = TimeDistributed(Highway())(l_gru_w)
+    else:
+        l_dense_w = TimeDistributed(Dense(opts.gru_dimension * 2))(l_gru_w)
     l_att_w = AttentionWithContext()(l_dense_w)
     sentEncoder = Model(sentence_input, l_att_w)
 
     review_encoder = TimeDistributed(sentEncoder)(review_input)
     l_gru_sent = Bidirectional(GRU(opts.gru_dimension, return_sequences=True))(review_encoder)
-    l_dense_sent = TimeDistributed(Dense(opts.gru_dimension * 2))(l_gru_sent)
+    if opts.HIGH_WAY:
+        l_dense_sent = TimeDistributed(Highway())(l_gru_sent)
+    else:
+        l_dense_sent = TimeDistributed(Dense(opts.gru_dimension * 2))(l_gru_sent)
     l_att_sent = AttentionWithContext()(l_dense_sent)
     preds = Dense(10, activation='softmax')(l_att_sent)
     model = Model(review_input, preds)
@@ -448,7 +470,7 @@ def text_classification_task():
 
     # Read data
     if opts.pretrained_emb is None:
-        opts.pretrained_emb = "/home/yuanzhike/data/glove/glove.6B.200d.txt"
+        opts.pretrained_emb = "/home/yuanzhike/data/glove/glove.6B.100d.txt"
 
     (word_index, x_train, y_train, x_val, y_val) = \
         read_text_classification_task_data(opts)
@@ -462,13 +484,17 @@ def text_classification_task():
     model = build_HATT_RNN(opts, embedded_sequences, sentence_input, review_input)
 
     model.summary()
+    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, mode='min')
+    early_stopper = EarlyStopping(monitor='val_loss', patience=10, mode='min')
     model.compile(loss='categorical_crossentropy',
-                  optimizer='rmsprop',
+                  optimizer=sgd,
                   metrics=['acc'])
 
     print("model fitting - Hierachical attention network")
     model.fit(x_train, y_train, validation_data=(x_val, y_val),
-              nb_epoch=10, batch_size=opts.batch_size)
+              epochs=200, batch_size=opts.batch_size,
+              callbacks=[reduce_lr, early_stopper])
     model.save("cmwe_" + datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
 
 
