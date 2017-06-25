@@ -33,7 +33,7 @@ from embeddingdot import EmbeddingDot
 from keras.preprocessing.text import Tokenizer, text_to_word_sequence
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils.np_utils import to_categorical
-from keras.callbacks import ReduceLROnPlateau, EarlyStopping
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping, CSVLogger
 from keras.legacy.layers import Highway
 
 flags = tf.app.flags
@@ -484,9 +484,10 @@ def text_classification_task():
     model = build_HATT_RNN(opts, embedded_sequences, sentence_input, review_input)
 
     model.summary()
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    sgd = optimizers.SGD(lr=0.005, momentum=0.9)
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, mode='min')
     early_stopper = EarlyStopping(monitor='val_loss', patience=10, mode='min')
+    csv_logger = CSVLogger(filename="log_cmwe_" + datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
     model.compile(loss='categorical_crossentropy',
                   optimizer=sgd,
                   metrics=['acc'])
@@ -494,7 +495,7 @@ def text_classification_task():
     print("model fitting - Hierachical attention network")
     model.fit(x_train, y_train, validation_data=(x_val, y_val),
               epochs=200, batch_size=opts.batch_size,
-              callbacks=[reduce_lr, early_stopper])
+              callbacks=[reduce_lr, early_stopper, csv_logger])
     model.save("cmwe_" + datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
 
 
