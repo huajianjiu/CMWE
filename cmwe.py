@@ -486,7 +486,7 @@ def text_classification_task():
     model.summary()
     sgd = optimizers.SGD(lr=0.005, momentum=0.9)
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, mode='min')
-    early_stopper = EarlyStopping(monitor='val_loss', patience=10, mode='min')
+    early_stopper = EarlyStopping(monitor='val_loss', patience=50, mode='min')
     csv_logger = CSVLogger(filename="log_cmwe_" + datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
     model.compile(loss='categorical_crossentropy',
                   optimizer=sgd,
