@@ -33,6 +33,7 @@ def getJp():
     with open("jp_shape_vocab.pickle", "wb") as f:
         pickle._dump(shape_vocab_data, f)
 
+
 def getCh():
     count = 0
     char_vocab = []
