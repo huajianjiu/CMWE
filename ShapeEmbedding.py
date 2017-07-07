@@ -1,11 +1,18 @@
 import re, string, pickle, numpy
-from keras.layers import Embedding, Input, AveragePooling1D, Conv1D
+from keras.models import Model
+from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
+    Bidirectional, LSTM, Dense, Flatten
+from keras.legacy.layers import Highway
 from keras import backend as K
 from keras import initializers, regularizers, constraints
 from keras.engine import Layer
 from getShapeCode import get_all_word_bukken
 
 MAX_SENTENCE_LENGTH = 100
+MAX_WORD_LENGTH = 7
+COMP_WIDTH = 3
+CHAR_EMB_DIM = 15
+
 
 def _make_kana_convertor():
     # by http://d.hatena.ne.jp/mohayonao/20091129/1259505966
@@ -56,7 +63,7 @@ def load_shape_data(datafile="usc-shape_bukken_data.pickle"):
 
 def get_vocab(opts=None):
     # convert kata to hira
-    char_emb_dim = 15
+    char_emb_dim = CHAR_EMB_DIM
     use_component = True  # True for component level False for chara level
 
     _, _, hirakana_list = _make_kana_convertor()
@@ -71,6 +78,7 @@ def get_vocab(opts=None):
     hira_and_punc_number = len(hira_and_punc) + 2
     vocab = ["</padblank>", "</s>"] + list(hira_and_punc) + vocab_bukken
     real_vocab_number = len(vocab)  # the part of the vocab that is really used. only basic components
+    vocab_chara = [chara for chara in vocab_chara if chara not in vocab_bukken]  # delete 独体字
     print("totally {n} puctuation, kana, and chara components".format(n=str(real_vocab_number)))
     full_vocab = vocab + vocab_chara  # add unk at the head, and complex charas for text encoding at the tail
     chara_bukken_revised = {}
@@ -83,7 +91,7 @@ def get_vocab(opts=None):
 
 
 def text_to_char_index(full_vocab=[], real_vocab_number=0, chara_bukken_revised={}, sentence_text="今日は何シテ遊ぶの？",
-                       mode="padding", char_emb_dim=15, comp_width=4):
+                       mode="padding", char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_WIDTH):
     # mode:
     # average: will repeat the original index to #comp_width for the process of the embedding layer
     # padding: will pad the original index to #comp_width with zero for the process of the embedding layer
@@ -115,22 +123,23 @@ def text_to_char_index(full_vocab=[], real_vocab_number=0, chara_bukken_revised=
                 int_text += [i] * comp_width
     elif mode == "padding":
         for c in text:
+            # print(c)
             i = ch2id[c]
+            # print(i)
             if i > real_vocab_number:
                 comps = chara_bukken_revised[i]
+                # print(comps)
                 if len(comps) >= comp_width:
                     int_text += comps[:comp_width]
-                elif len(comps) == 1:
-                    int_text += [i] * comp_width
                 else:
                     int_text += comps + [0] * (comp_width - len(comps))
             else:
-                int_text += [i] * comp_width
+                int_text += [i] + [0] * (comp_width - 1)
     return int_text
 
 
-def build_word_feature(vocab_size=5, char_emb_dim=15, comp_width=4,
-                         mode="padding", input_layer=Input(shape=(MAX_SENTENCE_LENGTH,))):
+def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_WIDTH,
+                       mode="padding"):
     # build the feature computed by cnn for each word in the sentence. used to input to the next rnn.
     # expected input: every #comp_width int express a character.
     # mode:
@@ -139,24 +148,63 @@ def build_word_feature(vocab_size=5, char_emb_dim=15, comp_width=4,
 
     # real vocab_size for ucs is 2481, including paddingblank, unkown, puncutations, kanas
     init_width = 0.5 / char_emb_dim
-    init_weight = numpy.random.uniform(low=-init_width, high=init_width, size=[vocab_size, char_emb_dim])
+    init_weight = numpy.random.uniform(low=-init_width, high=init_width, size=(vocab_size, char_emb_dim))
     init_weight[0] = 0  # maybe the padding should not be zero
-    print(init_weight)
-    # first layer embeds every components
+    # print(init_weight)
+    # first layer embeds
+    #  every components
+    word_input = Input(shape=(3*MAX_WORD_LENGTH,))
     char_embedding = \
-        Embedding(input_dim=vocab_size, output_dim=char_emb_dim, weights=init_weight, trainable=True)(input_layer)
+        Embedding(input_dim=vocab_size, output_dim=char_emb_dim, weights=[init_weight], trainable=True)(word_input)
     if mode == "average":
         # 2nd layer average the #comp_width components of every character
         char_embedding = AveragePooling1D(pool_size=comp_width, strides=comp_width, padding='valid')
-        # TODO: conv, filter width 1 2, feature maps 50 100
+        # TODO: conv, filter width 1 2 3, feature maps 200 200 200
+        feature1 = Conv1D(filters=200, kernel_size=1)(char_embedding)
+        feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
+        feature2 = Conv1D(filters=200, kernel_size=2)(char_embedding)
+        feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
+        feature3 = Conv1D(filters=200, kernel_size=2)(char_embedding)
+        feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
+        feature = concatenate([feature1, feature2])
     elif mode == "padding":
-        # TODO: conv, filter with 1*#comp_width 2*#comp_width, feature maps 50 100
-    char_embedding = Conv1D()
+        # print(char_embedding._keras_shape)
+        # TODO: conv, filter with 1*#comp_width 2*#comp_width, feature maps 200 200
+        feature1 = Conv1D(filters=200, kernel_size=1 * comp_width, strides=comp_width)(char_embedding)
+        feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
+        feature2 = Conv1D(filters=200, kernel_size=2 * comp_width, strides=comp_width)(char_embedding)
+        feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
+        feature3 = Conv1D(filters=200, kernel_size=3 * comp_width, strides=comp_width)(char_embedding)
+        feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
+        feature = concatenate([feature1, feature2])
+    feature = Flatten()(feature)
+    # print(feature._keras_shape)
+    feature = Highway()(feature)
+    word_feature_encoder = Model(word_input, feature)
+    return word_feature_encoder
 
-def build_sentence_rnn():
+
+def build_sentence_rnn(real_vocab_number):
+    # build the rnn of words, use the output of build_word_feature as the feature of each word
+    sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, 3*MAX_WORD_LENGTH))
+    word_feature_encoder = build_word_feature(vocab_size=real_vocab_number)
+    word_feature_sequence = TimeDistributed(word_feature_encoder)(sentence_input)
+    lstm_rnn = Bidirectional(LSTM(300, dropout=0.5, return_sequences=True))(word_feature_sequence)
+    lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
+    preds = Dense(1, activation='sigmoid')(lstm_rnn)
+    sentence_model = Model(sentence_input, preds)
+    sentence_model.summary()
+    return sentence_model
+
+def sentence_classification_job(sentence_input_text="今日 は 何シテ 遊ぶ の ？", full_vocab=[], real_vocab_number=0,
+                       chara_bukken_revised={}, char_emb_dim=CHAR_EMB_DIM):
     # expected input. a sequence of the forward output of build_word_feature
-    # TODO: build the rnn of words, use the output of build_word_feature as the feature of each word
-    pass
+    if isinstance(sentence_input_text, str):
+        sentence_input_text = sentence_input_text.split()
+    sentence_input_int = [text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                            chara_bukken_revised=chara_bukken_revised,
+                                            sentence_text=x) for x in sentence_input_text]
+    # TODO: preprocess data
 
 if __name__ == "__main__":
     # print(build_jp_embedding())
@@ -166,10 +214,10 @@ if __name__ == "__main__":
     #     print(full_vocab[i], chara_bukken_revised[i], [full_vocab[k] for k in chara_bukken_revised[i]])
     #
     # print(text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-    #                          chara_bukken_revised=chara_bukken_revised))
+    #                          chara_bukken_revised=chara_bukken_revised, mode="padding", comp_width=3))
 
     # from keras.models import Sequential
-    #
+
     # model1 = Sequential()
     # model1.add(Embedding(input_dim=3, output_dim=6))
     # model1.add(AveragePooling1D(pool_size=3, strides=3))
@@ -177,3 +225,17 @@ if __name__ == "__main__":
     # input_array = numpy.random.randint(3, size=(30, 12))
     # output_array = model1.predict(input_array)
     # print(output_array.shape)
+
+    # inputs = Input(shape=(3 * MAX_SENTENCE_LENGTH,))
+    # outputs = build_word_feature(word_input=inputs)
+    # model = Model(inputs=inputs, outputs=outputs)
+    # model.compile('rmsprop', 'mse')
+    # input_array = numpy.random.randint(5, size=(30, 3 * MAX_WORD_LENGTH))
+    # output_array = model.predict(input_array)
+    # print(output_array.shape)
+    # print(output_array[0])
+    model = build_sentence_rnn(5)
+    model.compile('rmsprop', 'mse')
+    input_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, 3 * MAX_WORD_LENGTH))
+    output_array = model.predict(input_array)
+    print(output_array.shape)
