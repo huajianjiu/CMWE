@@ -1,4 +1,5 @@
 import re, string, pickle, numpy, pandas
+from pyknp import Jumanpp
 from keras.models import Model
 from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
     Bidirectional, LSTM, Dense, Flatten
@@ -7,9 +8,10 @@ from keras import backend as K
 from keras import initializers, regularizers, constraints
 from keras.engine import Layer
 from getShapeCode import get_all_word_bukken
+from keras.preprocessing.sequence import pad_sequences
 
-MAX_SENTENCE_LENGTH = 100
-MAX_WORD_LENGTH = 7
+MAX_SENTENCE_LENGTH = 50
+MAX_WORD_LENGTH = 4
 COMP_WIDTH = 3
 CHAR_EMB_DIM = 15
 
@@ -90,8 +92,8 @@ def get_vocab(opts=None):
     return full_vocab, real_vocab_number, chara_bukken_revised
 
 
-def text_to_char_index(full_vocab=[], real_vocab_number=0, chara_bukken_revised={}, sentence_text="今日は何シテ遊ぶの？",
-                       mode="padding", char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_WIDTH):
+def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sentence_text,
+                       mode="padding", comp_width=COMP_WIDTH):
     # mode:
     # average: will repeat the original index to #comp_width for the process of the embedding layer
     # padding: will pad the original index to #comp_width with zero for the process of the embedding layer
@@ -153,28 +155,28 @@ def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_
     # print(init_weight)
     # first layer embeds
     #  every components
-    word_input = Input(shape=(3*MAX_WORD_LENGTH,))
+    word_input = Input(shape=(COMP_WIDTH*MAX_WORD_LENGTH,))
     char_embedding = \
         Embedding(input_dim=vocab_size, output_dim=char_emb_dim, weights=[init_weight], trainable=True)(word_input)
     if mode == "average":
         # 2nd layer average the #comp_width components of every character
         char_embedding = AveragePooling1D(pool_size=comp_width, strides=comp_width, padding='valid')
-        # TODO: conv, filter width 1 2 3, feature maps 200 200 200
-        feature1 = Conv1D(filters=200, kernel_size=1)(char_embedding)
+        # TODO: conv, filter width 1 2 3, feature maps 50 100 150
+        feature1 = Conv1D(filters=50, kernel_size=1)(char_embedding)
         feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
-        feature2 = Conv1D(filters=200, kernel_size=2)(char_embedding)
+        feature2 = Conv1D(filters=100, kernel_size=2)(char_embedding)
         feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-        feature3 = Conv1D(filters=200, kernel_size=2)(char_embedding)
+        feature3 = Conv1D(filters=150, kernel_size=2)(char_embedding)
         feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
         feature = concatenate([feature1, feature2])
     elif mode == "padding":
         # print(char_embedding._keras_shape)
-        # TODO: conv, filter with 1*#comp_width 2*#comp_width, feature maps 200 200
-        feature1 = Conv1D(filters=200, kernel_size=1 * comp_width, strides=comp_width)(char_embedding)
+        # TODO: conv, filter with [1, 2, 3]*#comp_width, feature maps 50 100 150
+        feature1 = Conv1D(filters=50, kernel_size=1 * comp_width, strides=comp_width)(char_embedding)
         feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
-        feature2 = Conv1D(filters=200, kernel_size=2 * comp_width, strides=comp_width)(char_embedding)
+        feature2 = Conv1D(filters=100, kernel_size=2 * comp_width, strides=comp_width)(char_embedding)
         feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-        feature3 = Conv1D(filters=200, kernel_size=3 * comp_width, strides=comp_width)(char_embedding)
+        feature3 = Conv1D(filters=150, kernel_size=3 * comp_width, strides=comp_width)(char_embedding)
         feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
         feature = concatenate([feature1, feature2])
     feature = Flatten()(feature)
@@ -186,10 +188,10 @@ def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_
 
 def build_sentence_rnn(real_vocab_number, classes=2):
     # build the rnn of words, use the output of build_word_feature as the feature of each word
-    sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, 3*MAX_WORD_LENGTH))
+    sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, COMP_WIDTH*MAX_WORD_LENGTH))
     word_feature_encoder = build_word_feature(vocab_size=real_vocab_number)
     word_feature_sequence = TimeDistributed(word_feature_encoder)(sentence_input)
-    lstm_rnn = Bidirectional(LSTM(300, dropout=0.5, return_sequences=True))(word_feature_sequence)
+    lstm_rnn = Bidirectional(LSTM(200, dropout=0.5, return_sequences=True))(word_feature_sequence)
     lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
     if classes == 2:
         preds = Dense(1, activation='sigmoid')(lstm_rnn)
@@ -199,7 +201,8 @@ def build_sentence_rnn(real_vocab_number, classes=2):
     sentence_model.summary()
     return sentence_model
 
-def kyoto_classification_job(dev_mode=False, char_emb_dim=CHAR_EMB_DIM):
+
+def kyoto_classification_job(dev_mode=False, juman=True, char_emb_dim=CHAR_EMB_DIM):
     # expected input. a sequence of the forward output of build_word_feature
 
     # get vocab
@@ -236,7 +239,28 @@ def kyoto_classification_job(dev_mode=False, char_emb_dim=CHAR_EMB_DIM):
             labels_ng.append(0)
         labels_14.append(label_14_names.index(sen_sheet.iloc[i][5]))
 
-    # TODO: change the sentence into word sequence
+    # TODO: change the sentence into matrix of word sequence
+    data = numpy.zeros(max_rows, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH)
+
+    if juman:
+        juman = Jumanpp()
+        for i, text in enumerate(sentence_texts):
+            parse_result = juman.analysis(text)
+            for j, mrph in enumerate(parse_result.mrph_list()):
+                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                                chara_bukken_revised=chara_bukken_revised, sentence_text=mrph.genkei)
+                if len(char_index) < COMP_WIDTH*MAX_WORD_LENGTH:
+                    char_index = char_index + [0] * (COMP_WIDTH*MAX_WORD_LENGTH - char_index)  #Padding
+                for k, comp in char_index:
+                    data[i, j, k] = comp
+    else:
+        char_int_sequence = [text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                               chara_bukken_revised=chara_bukken_revised, sentence_text=text)
+                             for text in sentence_texts]
+        padded_char_sequence = pad_sequences(char_int_sequence, maxlen=MAX_WORD_LENGTH, )
+        print("the n-gram module that not compeleted")
+        exit(1)
+    # TODO: split data into training and validation
 
 if __name__ == "__main__":
     # Test Vocab
@@ -261,11 +285,11 @@ if __name__ == "__main__":
     # print(output_array.shape)
 
     # Test Word Encoder
-    # inputs = Input(shape=(3 * MAX_SENTENCE_LENGTH,))
+    # inputs = Input(shape=(COMP_WIDTH * MAX_SENTENCE_LENGTH,))
     # outputs = build_word_feature(word_input=inputs)
     # model = Model(inputs=inputs, outputs=outputs)
     # model.compile('rmsprop', 'mse')
-    # input_array = numpy.random.randint(5, size=(30, 3 * MAX_WORD_LENGTH))
+    # input_array = numpy.random.randint(5, size=(30, COMP_WIDTH * MAX_WORD_LENGTH))
     # output_array = model.predict(input_array)
     # print(output_array.shape)
     # print(output_array[0])
@@ -273,6 +297,8 @@ if __name__ == "__main__":
     # Test Sentence Encoder
     model = build_sentence_rnn(5)
     model.compile('rmsprop', 'mse')
-    input_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, 3 * MAX_WORD_LENGTH))
+    input_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
     output_array = model.predict(input_array)
     print(output_array.shape)
+    # from keras.utils import plot_model
+    # plot_model(model, to_file='model.png')
