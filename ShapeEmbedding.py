@@ -1,4 +1,4 @@
-import re, string, pickle, numpy
+import re, string, pickle, numpy, pandas
 from keras.models import Model
 from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
     Bidirectional, LSTM, Dense, Flatten
@@ -184,29 +184,62 @@ def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_
     return word_feature_encoder
 
 
-def build_sentence_rnn(real_vocab_number):
+def build_sentence_rnn(real_vocab_number, classes=2):
     # build the rnn of words, use the output of build_word_feature as the feature of each word
     sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, 3*MAX_WORD_LENGTH))
     word_feature_encoder = build_word_feature(vocab_size=real_vocab_number)
     word_feature_sequence = TimeDistributed(word_feature_encoder)(sentence_input)
     lstm_rnn = Bidirectional(LSTM(300, dropout=0.5, return_sequences=True))(word_feature_sequence)
     lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
-    preds = Dense(1, activation='sigmoid')(lstm_rnn)
+    if classes == 2:
+        preds = Dense(1, activation='sigmoid')(lstm_rnn)
+    else:
+        preds = Dense(classes, activation='softmax')(lstm_rnn)
     sentence_model = Model(sentence_input, preds)
     sentence_model.summary()
     return sentence_model
 
-def sentence_classification_job(sentence_input_text="今日 は 何シテ 遊ぶ の ？", full_vocab=[], real_vocab_number=0,
-                       chara_bukken_revised={}, char_emb_dim=CHAR_EMB_DIM):
+def kyoto_classification_job(dev_mode=False, char_emb_dim=CHAR_EMB_DIM):
     # expected input. a sequence of the forward output of build_word_feature
-    if isinstance(sentence_input_text, str):
-        sentence_input_text = sentence_input_text.split()
-    sentence_input_int = [text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                            chara_bukken_revised=chara_bukken_revised,
-                                            sentence_text=x) for x in sentence_input_text]
+
+    # get vocab
+    full_vocab, real_vocab_number, chara_bukken_revised = get_vocab()
+
+    # if isinstance(sentence_input_text, str):
+    #     sentence_input_text = sentence_input_text.split()
+    # sentence_input_int = [text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+    #                                         chara_bukken_revised=chara_bukken_revised,
+    #                                         sentence_text=x) for x in sentence_input_text]
     # TODO: preprocess data
 
+    # read xlsx
+    data_f = pandas.ExcelFile('/home/yuanzhike/CMWE/kt_blog_data/EvaluativeInformationCorpus/EvalAnnotation-A.xlsx')
+    sen_sheet = data_f.parse('Sheet1')
+    rows, columns = sen_sheet.shape
+    print("Totally {n} sentences in the dataset".format(n=rows))
+    if dev_mode:
+        max_rows = 5
+    else:
+        max_rows = rows
+    sentence_texts = []
+    labels_ng = []
+    labels_14 = []
+    label_14_names = ['メリット－', 'メリット＋', '感情－', '感情＋',
+                      '採否－', '採否＋', '出来事－', '出来事＋',
+                      '当為－', '当為＋', '批評－', '批評＋',
+                      '要望－', '要望＋']
+    for i in range(max_rows):
+        sentence_texts.append(sen_sheet.iloc[i][2])
+        if sen_sheet.iloc[i][3] == '+':
+            labels_ng.append(1)
+        else:
+            labels_ng.append(0)
+        labels_14.append(label_14_names.index(sen_sheet.iloc[i][5]))
+
+    # TODO: change the sentence into word sequence
+
 if __name__ == "__main__":
+    # Test Vocab
     # print(build_jp_embedding())
     # full_vocab, real_vocab_number, chara_bukken_revised = get_vocab()
     #
@@ -218,6 +251,7 @@ if __name__ == "__main__":
 
     # from keras.models import Sequential
 
+    # Test Pooling
     # model1 = Sequential()
     # model1.add(Embedding(input_dim=3, output_dim=6))
     # model1.add(AveragePooling1D(pool_size=3, strides=3))
@@ -226,6 +260,7 @@ if __name__ == "__main__":
     # output_array = model1.predict(input_array)
     # print(output_array.shape)
 
+    # Test Word Encoder
     # inputs = Input(shape=(3 * MAX_SENTENCE_LENGTH,))
     # outputs = build_word_feature(word_input=inputs)
     # model = Model(inputs=inputs, outputs=outputs)
@@ -234,6 +269,8 @@ if __name__ == "__main__":
     # output_array = model.predict(input_array)
     # print(output_array.shape)
     # print(output_array[0])
+
+    # Test Sentence Encoder
     model = build_sentence_rnn(5)
     model.compile('rmsprop', 'mse')
     input_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, 3 * MAX_WORD_LENGTH))
