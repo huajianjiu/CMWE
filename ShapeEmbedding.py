@@ -1,4 +1,4 @@
-import re, string, pickle, numpy, pandas
+import re, string, pickle, numpy, pandas, mojimoji
 from pyknp import Jumanpp
 from keras.models import Model
 from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
@@ -71,22 +71,28 @@ def get_vocab(opts=None):
     _, _, hirakana_list = _make_kana_convertor()
     addition_translate = str.maketrans("ッャュョヮヵヶ", "っゃゅょゎゕゖ")
 
-    hira_and_punc = "".join(hirakana_list) + string.punctuation + \
+    hira_punc_number_latin = "".join(hirakana_list) + string.punctuation + \
                     ',)]｝、〕〉》」』】〙〗〟’”｠»ゝゞー' \
                     'ヴゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇷ゚ㇺㇻㇼㇽㇾㇿ々〻' \
-                    '‐゠–〜～?!‼⁇⁈⁉・:;？、！/。.([｛〔〈《「『【〘〖〝‘“｟«—…‥〳〴〵'
+                    '‐゠–〜～?!‼⁇⁈⁉・:;？、！/。.([｛〔〈《「『【〘〖〝‘“｟«—…‥〳〴〵･' \
+                    '1234567890' \
+                    'abcdefghijklmnopqrstuvwxyz ' \
+                    '○●☆★■♪ヾω*´｀≧∇≦'
+    # note: the space and punctuations in Jp sometimes show emotion
 
     vocab_chara, vocab_bukken, chara_bukken = get_all_word_bukken()
-    hira_and_punc_number = len(hira_and_punc) + 2
-    vocab = ["</padblank>", "</s>"] + list(hira_and_punc) + vocab_bukken
+    hira_punc_number_latin_number = len(hira_punc_number_latin) + 2
+    vocab = ["</padblank>", "</s>"] + list(hira_punc_number_latin) + vocab_bukken
     real_vocab_number = len(vocab)  # the part of the vocab that is really used. only basic components
-    vocab_chara = [chara for chara in vocab_chara if chara not in vocab_bukken]  # delete 独体字
+    vocab_chara_strip = [chara for chara in vocab_chara if chara not in vocab_bukken]  # delete 独体字
     print("totally {n} puctuation, kana, and chara components".format(n=str(real_vocab_number)))
-    full_vocab = vocab + vocab_chara  # add unk at the head, and complex charas for text encoding at the tail
+    full_vocab = vocab + vocab_chara_strip  # add unk at the head, and complex charas for text encoding at the tail
     chara_bukken_revised = {}
     for i_word, i_bukken in chara_bukken.items():  # update the index
-        chara_bukken_revised[i_word + real_vocab_number] = \
-            [k + hira_and_punc_number for k in i_bukken]
+        if vocab_chara[i_word] not in vocab_bukken: # delete 独体字
+            chara_bukken_revised[full_vocab.index(vocab_chara[i_word])] = \
+                [k + hira_punc_number_latin_number for k in i_bukken]
+    del vocab_chara
     del chara_bukken
 
     return full_vocab, real_vocab_number, chara_bukken_revised
@@ -100,16 +106,23 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
     # char_emb_dim  char embedding size
     # comp_width  #components used
 
+    # convert digital number and latin to hangaku
+    text = mojimoji.zen_to_han(sentence_text, kana=False)
+    # convert kana to zengaku
+    text = mojimoji.han_to_zen(text, digit=False, ascii=False)
     # convert kata to hira
     _, katakana2hiragana, _ = _make_kana_convertor()
-    text = katakana2hiragana(sentence_text)
-    addition_translate = str.maketrans("ッャュョヮヵヶ", "っゃゅょゎゕゖ")
+    text = katakana2hiragana(text)
+    addition_translate = str.maketrans("ッャュョヮヵヶ￣▽", "っゃゅょゎゕゖ ∇")  # additional transformation
     text = text.translate(addition_translate)
+    # finally, lowercase
+    text = text.lower()
     # expanding every character with 3 components
     ch2id = {}
     for i, w in enumerate(full_vocab):
         ch2id[w] = i
     int_text = []
+    # print(text)
     if mode == "average":
         for c in text:
             i = ch2id[c]
@@ -240,20 +253,27 @@ def kyoto_classification_job(dev_mode=False, juman=True, char_emb_dim=CHAR_EMB_D
         labels_14.append(label_14_names.index(sen_sheet.iloc[i][5]))
 
     # TODO: change the sentence into matrix of word sequence
-    data = numpy.zeros(max_rows, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH)
+    data = numpy.zeros((max_rows, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
+    print("datashape: {shape}".format(shape=str(data.shape)))
 
     if juman:
         juman = Jumanpp()
         for i, text in enumerate(sentence_texts):
+            # print(text)
             parse_result = juman.analysis(text)
             for j, mrph in enumerate(parse_result.mrph_list()):
+                if j+1 > MAX_SENTENCE_LENGTH:
+                    break
                 char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                                 chara_bukken_revised=chara_bukken_revised, sentence_text=mrph.genkei)
                 if len(char_index) < COMP_WIDTH*MAX_WORD_LENGTH:
-                    char_index = char_index + [0] * (COMP_WIDTH*MAX_WORD_LENGTH - char_index)  #Padding
-                for k, comp in char_index:
+                    char_index = char_index + [0] * (COMP_WIDTH*MAX_WORD_LENGTH - len(char_index))  #Padding
+                elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
+                    char_index = char_index[:COMP_WIDTH * MAX_WORD_LENGTH]
+                for k, comp in enumerate(char_index):
                     data[i, j, k] = comp
     else:
+        # not completed yet
         char_int_sequence = [text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                                chara_bukken_revised=chara_bukken_revised, sentence_text=text)
                              for text in sentence_texts]
@@ -261,11 +281,12 @@ def kyoto_classification_job(dev_mode=False, juman=True, char_emb_dim=CHAR_EMB_D
         print("the n-gram module that not compeleted")
         exit(1)
     # TODO: split data into training and validation
+    return data, labels_14, label_14_names
 
 if __name__ == "__main__":
     # Test Vocab
     # print(build_jp_embedding())
-    # full_vocab, real_vocab_number, chara_bukken_revised = get_vocab()
+    full_vocab, real_vocab_number, chara_bukken_revised = get_vocab()
     #
     # for i in [4000, 5000, 8000]:
     #     print(full_vocab[i], chara_bukken_revised[i], [full_vocab[k] for k in chara_bukken_revised[i]])
@@ -295,10 +316,21 @@ if __name__ == "__main__":
     # print(output_array[0])
 
     # Test Sentence Encoder
-    model = build_sentence_rnn(5)
-    model.compile('rmsprop', 'mse')
-    input_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
-    output_array = model.predict(input_array)
-    print(output_array.shape)
+    # model = build_sentence_rnn(5)
+    # model.compile('rmsprop', 'mse')
+    # input_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
+    # output_array = model.predict(input_array)
+    # print(output_array.shape)
     # from keras.utils import plot_model
     # plot_model(model, to_file='model.png')
+
+    # Test data preprocess
+    data, labels, label_names = kyoto_classification_job(dev_mode=False, juman=True)
+    print(len(labels))
+    print([label_names[x] for x in labels[120:129]])
+    for words in data[120:129]:
+        for word in words:
+            for token in word:
+                if token != 0:
+                    print(full_vocab[token], end="")
+        print("\n", end="")
