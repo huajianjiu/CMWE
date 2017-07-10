@@ -1,20 +1,22 @@
-import re, string, pickle, numpy, pandas, mojimoji
+import re, string, pickle, numpy, pandas, mojimoji, datetime
 from pyknp import Jumanpp
+from keras import optimizers
 from keras.models import Model
 from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
     Bidirectional, LSTM, Dense, Flatten
 from keras.legacy.layers import Highway
-from keras import backend as K
-from keras import initializers, regularizers, constraints
-from keras.engine import Layer
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping, CSVLogger
+from keras.utils.np_utils import to_categorical
 from getShapeCode import get_all_word_bukken
 from keras.preprocessing.sequence import pad_sequences
+from attention import AttentionWithContext
 
 MAX_SENTENCE_LENGTH = 50
 MAX_WORD_LENGTH = 4
 COMP_WIDTH = 3
 CHAR_EMB_DIM = 15
-
+VALIDATION_SPLIT = 0.2
+BATCH_SIZE = 64
 
 def _make_kana_convertor():
     # by http://d.hatena.ne.jp/mohayonao/20091129/1259505966
@@ -199,15 +201,22 @@ def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_
     return word_feature_encoder
 
 
-def build_sentence_rnn(real_vocab_number, classes=2):
+def build_sentence_rnn(real_vocab_number, classes=2, attention=False):
     # build the rnn of words, use the output of build_word_feature as the feature of each word
-    sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, COMP_WIDTH*MAX_WORD_LENGTH))
     word_feature_encoder = build_word_feature(vocab_size=real_vocab_number)
+    sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, COMP_WIDTH*MAX_WORD_LENGTH), dtype='int32')
     word_feature_sequence = TimeDistributed(word_feature_encoder)(sentence_input)
-    lstm_rnn = Bidirectional(LSTM(200, dropout=0.5, return_sequences=True))(word_feature_sequence)
-    lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
-    if classes == 2:
-        preds = Dense(1, activation='sigmoid')(lstm_rnn)
+    if attention:
+        lstm_rnn = Bidirectional(LSTM(200, dropout=0.5, return_sequences=True))(word_feature_sequence)
+        lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
+        lstm_rnn = AttentionWithContext()(lstm_rnn)
+    else:
+        lstm_rnn = Bidirectional(LSTM(200, dropout=0.5, return_sequences=False))(word_feature_sequence)
+    print(lstm_rnn._keras_shape)
+    # lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
+    if classes < 2:
+        print("class number cannot less than 2")
+        exit(1)
     else:
         preds = Dense(classes, activation='softmax')(lstm_rnn)
     sentence_model = Model(sentence_input, preds)
@@ -215,7 +224,7 @@ def build_sentence_rnn(real_vocab_number, classes=2):
     return sentence_model
 
 
-def kyoto_classification_job(dev_mode=False, juman=True, char_emb_dim=CHAR_EMB_DIM):
+def prepare_kyoto_classification(dev_mode=False, juman=True, char_emb_dim=CHAR_EMB_DIM):
     # expected input. a sequence of the forward output of build_word_feature
 
     # get vocab
@@ -226,7 +235,7 @@ def kyoto_classification_job(dev_mode=False, juman=True, char_emb_dim=CHAR_EMB_D
     # sentence_input_int = [text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
     #                                         chara_bukken_revised=chara_bukken_revised,
     #                                         sentence_text=x) for x in sentence_input_text]
-    # TODO: preprocess data
+    # preprocess data
 
     # read xlsx
     data_f = pandas.ExcelFile('/home/yuanzhike/CMWE/kt_blog_data/EvaluativeInformationCorpus/EvalAnnotation-A.xlsx')
@@ -252,9 +261,9 @@ def kyoto_classification_job(dev_mode=False, juman=True, char_emb_dim=CHAR_EMB_D
             labels_ng.append(0)
         labels_14.append(label_14_names.index(sen_sheet.iloc[i][5]))
 
-    # TODO: change the sentence into matrix of word sequence
+    # change the sentence into matrix of word sequence
     data = numpy.zeros((max_rows, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
-    print("datashape: {shape}".format(shape=str(data.shape)))
+    print("Data shape: {shape}".format(shape=str(data.shape)))
 
     if juman:
         juman = Jumanpp()
@@ -280,13 +289,73 @@ def kyoto_classification_job(dev_mode=False, juman=True, char_emb_dim=CHAR_EMB_D
         padded_char_sequence = pad_sequences(char_int_sequence, maxlen=MAX_WORD_LENGTH, )
         print("the n-gram module that not compeleted")
         exit(1)
-    # TODO: split data into training and validation
-    return data, labels_14, label_14_names
+
+    # convert labels to one-hot vectors
+    labels_ng_c = to_categorical(numpy.asarray(labels_ng))
+    labels_14_c = to_categorical(numpy.asarray(labels_14))
+    print('Poly Label Shape:', labels_ng_c.shape)
+    print('Fine-grained Label Shape:', labels_14_c.shape)
+
+    # split data into training and validation
+    indices = numpy.arange(data.shape[0])
+    numpy.random.shuffle(indices)
+    data = data[indices]
+    labels_ng_c = labels_ng_c[indices]
+    labels_14_c = labels_14_c[indices]
+    nb_validation_samples = int(VALIDATION_SPLIT * data.shape[0])
+
+    x_train = data[:-nb_validation_samples]
+    y1_train = labels_ng_c[:-nb_validation_samples]
+    y2_train = labels_14_c[:-nb_validation_samples]
+    x_val = data[-nb_validation_samples:]
+    y1_val = labels_ng_c[-nb_validation_samples:]
+    y2_val = labels_14_c[-nb_validation_samples:]
+
+    print('Number of different reviews for training and test')
+    print(y1_train.sum(axis=0))
+    print(y1_val.sum(axis=0))
+    print(y2_train.sum(axis=0))
+    print(y2_val.sum(axis=0))
+
+    return full_vocab, real_vocab_number, chara_bukken_revised, x_train, y1_train, y2_train, x_val, y1_val, y2_val
+
+
+def kyoto_classification(dev_mode=False, juman=True, attention=False, char_emb_dim=CHAR_EMB_DIM):
+    full_vocab, real_vocab_number, chara_bukken_revised, x_train, y1_train, y2_train, x_val, y1_val, y2_val = \
+        prepare_kyoto_classification(dev_mode=dev_mode, juman=juman, char_emb_dim=char_emb_dim)
+
+    print("2 classes")
+    model1 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2, attention=attention)
+    sgd1 = optimizers.SGD(lr=0.005, momentum=0.9)
+    reduce_lr1 = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, mode='min')
+    early_stopper1 = EarlyStopping(monitor='val_loss', patience=50, mode='min')
+    csv_logger1 = CSVLogger(filename="kyoto_p_" + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
+    model1.compile(loss='categorical_crossentropy',
+                  optimizer=sgd1,
+                  metrics=['acc'])
+    model1.fit(x_train, y1_train, validation_data=(x_val, y1_val),
+              epochs=200, batch_size=BATCH_SIZE,
+              callbacks=[reduce_lr1, early_stopper1, csv_logger1])
+    model1.save("kyoto_p_" + datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
+
+    print("14 classes")
+    model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=14, attention=attention)
+    sgd2 = optimizers.SGD(lr=0.005, momentum=0.9)
+    reduce_lr2 = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5, mode='min')
+    early_stopper2 = EarlyStopping(monitor='val_loss', patience=50, mode='min')
+    csv_logger2 = CSVLogger(filename="kyoto_f_" + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
+    model2.compile(loss='categorical_crossentropy',
+                  optimizer=sgd2,
+                  metrics=['acc'])
+    model1.fit(x_train, y2_train, validation_data=(x_val, y2_val),
+              epochs=200, batch_size=BATCH_SIZE,
+              callbacks=[reduce_lr2, early_stopper2, csv_logger2])
+    model1.save("kyoto_f_" + datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
+
 
 if __name__ == "__main__":
     # Test Vocab
     # print(build_jp_embedding())
-    full_vocab, real_vocab_number, chara_bukken_revised = get_vocab()
     #
     # for i in [4000, 5000, 8000]:
     #     print(full_vocab[i], chara_bukken_revised[i], [full_vocab[k] for k in chara_bukken_revised[i]])
@@ -306,31 +375,33 @@ if __name__ == "__main__":
     # print(output_array.shape)
 
     # Test Word Encoder
-    # inputs = Input(shape=(COMP_WIDTH * MAX_SENTENCE_LENGTH,))
-    # outputs = build_word_feature(word_input=inputs)
-    # model = Model(inputs=inputs, outputs=outputs)
+    # model = build_word_feature()
     # model.compile('rmsprop', 'mse')
-    # input_array = numpy.random.randint(5, size=(30, COMP_WIDTH * MAX_WORD_LENGTH))
+    # input_array = numpy.random.randint(5, size=(MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
     # output_array = model.predict(input_array)
     # print(output_array.shape)
     # print(output_array[0])
 
     # Test Sentence Encoder
-    # model = build_sentence_rnn(5)
+    # model = build_sentence_rnn(real_vocab_number=5, classes=2, attention=True)
     # model.compile('rmsprop', 'mse')
     # input_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
     # output_array = model.predict(input_array)
     # print(output_array.shape)
+
     # from keras.utils import plot_model
     # plot_model(model, to_file='model.png')
 
     # Test data preprocess
-    data, labels, label_names = kyoto_classification_job(dev_mode=False, juman=True)
-    print(len(labels))
-    print([label_names[x] for x in labels[120:129]])
-    for words in data[120:129]:
-        for word in words:
-            for token in word:
-                if token != 0:
-                    print(full_vocab[token], end="")
-        print("\n", end="")
+    # data = kyoto_classification_job(dev_mode=False, juman=True)
+    # for words in data[120:129]:
+    #     for word in words:
+    #         for token in word:
+    #             if token != 0:
+    #                 print(full_vocab[token], end="")
+    #     print("\n", end="")
+    print("no attention")
+    kyoto_classification()
+    print("attention")
+    kyoto_classification(attention=True)
+
