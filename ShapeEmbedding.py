@@ -12,11 +12,11 @@ from keras.preprocessing.sequence import pad_sequences
 from attention import AttentionWithContext
 
 MAX_SENTENCE_LENGTH = 20
-MAX_WORD_LENGTH = 3
-COMP_WIDTH = 2
+MAX_WORD_LENGTH = 4
+COMP_WIDTH = 3
 CHAR_EMB_DIM = 15
 VALIDATION_SPLIT = 0.2
-BATCH_SIZE = 1000
+BATCH_SIZE = 100
 WORD_DIM = 150
 
 
@@ -76,12 +76,12 @@ def get_vocab(opts=None):
     addition_translate = str.maketrans("ッャュョヮヵヶ", "っゃゅょゎゕゖ")
 
     hira_punc_number_latin = "".join(hirakana_list) + string.punctuation + \
-                             ',)]｝、〕〉》」』】〙〗〟’”｠»ゝゞー' \
+                             ',)]｝、〕〉》」』】〙〗〟’｠»ゝゞー' \
                              'ヴゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇷ゚ㇺㇻㇼㇽㇾㇿ々〻' \
                              '‐゠–〜～?!‼⁇⁈⁉・:;？、！/。.([｛〔〈《「『【〘〖〝‘“｟«—…‥〳〴〵･' \
                              '1234567890' \
                              'abcdefghijklmnopqrstuvwxyz ' \
-                             '○●☆★■♪ヾω*´｀≧∇≦'
+                             '○●☆★■♪ヾω*´｀≧∇≦※→←↑↓＼″'
     # note: the space and punctuations in Jp sometimes show emotion
 
     vocab_chara, vocab_bukken, chara_bukken = get_all_word_bukken()
@@ -117,7 +117,7 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
     # convert kata to hira
     _, katakana2hiragana, _ = _make_kana_convertor()
     text = katakana2hiragana(text)
-    addition_translate = str.maketrans("ッャュョヮヵヶ￣▽", "っゃゅょゎゕゖ ∇")  # additional transformation
+    addition_translate = str.maketrans("ッャュョヮヵヶ￣▽〇", "っゃゅょゎゕゖ ∇○")  # additional transformation
     text = text.translate(addition_translate)
     # finally, lowercase
     text = text.lower()
@@ -179,21 +179,21 @@ def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_
         # 2nd layer average the #comp_width components of every character
         char_embedding = AveragePooling1D(pool_size=comp_width, strides=comp_width, padding='valid')
         # TODO: conv, filter width 1 2 3, feature maps 50 100 150
-        feature1 = Conv1D(filters=50, kernel_size=1)(char_embedding)
+        feature1 = Conv1D(filters=50, kernel_size=1, activation='relu')(char_embedding)
         feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
-        feature2 = Conv1D(filters=100, kernel_size=2)(char_embedding)
+        feature2 = Conv1D(filters=100, kernel_size=2, activation='relu')(char_embedding)
         feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-        feature3 = Conv1D(filters=150, kernel_size=2)(char_embedding)
+        feature3 = Conv1D(filters=150, kernel_size=3, activation='relu')(char_embedding)
         feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
         feature = concatenate([feature1, feature2])
     elif mode == "padding":
         # print(char_embedding._keras_shape)
         # TODO: conv, filter with [1, 2, 3]*#comp_width, feature maps 50 100 150
-        feature1 = Conv1D(filters=50, kernel_size=1 * comp_width, strides=comp_width)(char_embedding)
+        feature1 = Conv1D(filters=50, kernel_size=1 * comp_width, strides=comp_width, activation='relu')(char_embedding)
         feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
-        feature2 = Conv1D(filters=100, kernel_size=2 * comp_width, strides=comp_width)(char_embedding)
+        feature2 = Conv1D(filters=100, kernel_size=2 * comp_width, strides=comp_width, activation='relu')(char_embedding)
         feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-        feature3 = Conv1D(filters=150, kernel_size=3 * comp_width, strides=comp_width)(char_embedding)
+        feature3 = Conv1D(filters=150, kernel_size=3 * comp_width, strides=comp_width, activation='relu')(char_embedding)
         feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
         feature = concatenate([feature1, feature2])
     feature = Flatten()(feature)
@@ -203,7 +203,8 @@ def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_
     return word_feature_encoder
 
 
-def build_sentence_rnn(real_vocab_number, word_vocab_size=10, classes=2, attention=False, dropout=0, word=True, char=True):
+def build_sentence_rnn(real_vocab_number, word_vocab_size=10, classes=2, attention=False, dropout=0, word=True,
+                       char=True):
     # build the rnn of words, use the output of build_word_feature as the feature of each word
     if char:
         word_feature_encoder = build_word_feature(vocab_size=real_vocab_number)
@@ -351,6 +352,7 @@ def prepare_kyoto_classification(dev_mode=False, juman=True):
     return full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, \
            x1_train, x2_train, y1_train, y2_train, x1_val, x2_val, y1_val, y2_val
 
+
 def prepare_aozora_classification(dev_mode=False):
     # get vocab
     full_vocab, real_vocab_number, chara_bukken_revised = get_vocab()
@@ -362,70 +364,78 @@ def prepare_aozora_classification(dev_mode=False):
     #                                         sentence_text=x) for x in sentence_input_text]
     # preprocess data
 
-    # read xlsx
-    data = pickle.load((open("/aozora/aozora.pickle", "rb")))
+    # read data. Shape: {"NDC 3": 100 word sequence * 1000, "NDC 7":..., "NDC 9": ...}
+    data = pickle.load((open("aozora/aozora_3.pickle", "rb")))
 
     label_names = list(data.keys())
 
-    SEN_EACH = 4
+    data_size = len(data[label_names[0]]) * len(label_names)
 
-    data_size = len(data[label_names[0]]) * SEN_EACH
+    global MAX_SENTENCE_LENGTH
+    MAX_SENTENCE_LENGTH = 100
 
     # change the sentence into matrix of word sequence
-    data = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
+    data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
     data_word = numpy.zeros((data_size, MAX_SENTENCE_LENGTH), dtype=numpy.int32)
-    print("Data shape: {shape}".format(shape=str(data.shape)))
+    print("Data shape: {shape}".format(shape=str(data_char.shape)))
 
     word_vocab = ["</s>"]
+    labels = []
 
-    # TODO: padding the sequences to SEN_EACH*MAX_SENTENCE_LENGTH for each document and expand to
-    # TODO: [len(data)*SEN_EACH, MAX_SENTENCE_LENGTH]
-
-
+    for label, sentences in data.items():
+        for i, sentence in enumerate(sentences):
+            for j, word in enumerate(sentence):
+                if word not in word_vocab:
+                    word_vocab.append(word)
+                    word_index = len(word_vocab) - 1
+                else:
+                    word_index = word_vocab.index(word)
+                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                                chara_bukken_revised=chara_bukken_revised, sentence_text=word)
+                if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
+                    char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
+                elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
+                    char_index = char_index[:COMP_WIDTH * MAX_WORD_LENGTH]
+                for k, comp in enumerate(char_index):
+                    data_char[i, j, k] = comp
+                data_word[i, j] = word_index
+            labels.append(label_names.index(label))
 
     # convert labels to one-hot vectors
-    labels_ng_c = to_categorical(numpy.asarray(labels_ng))
-    labels_14_c = to_categorical(numpy.asarray(labels_14))
-    print('Poly Label Shape:', labels_ng_c.shape)
-    print('Fine-grained Label Shape:', labels_14_c.shape)
+    labels = to_categorical(numpy.asarray(labels))
+    print('Label Shape:', labels.shape)
 
     # split data into training and validation
-    indices = numpy.arange(data.shape[0])
+    indices = numpy.arange(data_char.shape[0])
     numpy.random.shuffle(indices)
-    data = data[indices]
+    data_char = data_char[indices]
     data_word = data_word[indices]
-    labels_ng_c = labels_ng_c[indices]
-    labels_14_c = labels_14_c[indices]
-    nb_validation_samples = int(VALIDATION_SPLIT * data.shape[0])
+    labels = labels[indices]
+    nb_validation_samples = int(VALIDATION_SPLIT * data_char.shape[0])
 
-    x1_train = data[:-nb_validation_samples]
+    x1_train = data_char[:-nb_validation_samples]
     x2_train = data_word[:-nb_validation_samples]
-    y1_train = labels_ng_c[:-nb_validation_samples]
-    y2_train = labels_14_c[:-nb_validation_samples]
-    x1_val = data[-nb_validation_samples:]
+    y_train = labels[:-nb_validation_samples]
+    x1_val = data_char[-nb_validation_samples:]
     x2_val = data_word[-nb_validation_samples:]
-    y1_val = labels_ng_c[-nb_validation_samples:]
-    y2_val = labels_14_c[-nb_validation_samples:]
+    y_val = labels[-nb_validation_samples:]
 
     print('Number of different reviews for training and test')
-    print(y1_train.sum(axis=0))
-    print(y1_val.sum(axis=0))
-    print(y2_train.sum(axis=0))
-    print(y2_val.sum(axis=0))
+    print(y_train.sum(axis=0))
+    print(y_val.sum(axis=0))
+
+    with open("aozora_3_splited_data.pickle", "wb") as f:
+        pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, word_vocab,
+                     x1_train, x2_train, y_train, x1_val, x2_val, y_val), f)
 
     return full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, \
-           x1_train, x2_train, y1_train, y2_train, x1_val, x2_val, y1_val, y2_val
+           x1_train, x2_train, y_train, x1_val, x2_val, y_val
 
 
-def do_classification_task(dev_mode=False, juman=True, attention=False, char_emb_dim=CHAR_EMB_DIM, task="kyoto"):
-    if task=="kyoto":
-        full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, \
-        x1_train, x2_train, y1_train, y2_train, x1_val, x2_val, y1_val, y2_val = \
-            prepare_kyoto_classification(dev_mode=dev_mode, juman=juman, char_emb_dim=char_emb_dim)
-    else:
-        full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, \
-        x1_train, x2_train, y1_train, y2_train, x1_val, x2_val, y1_val, y2_val = \
-            prepare_kyoto_classification(dev_mode=dev_mode, juman=juman, char_emb_dim=char_emb_dim)
+def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, char_emb_dim=CHAR_EMB_DIM, task="kyoto"):
+    full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, \
+    x1_train, x2_train, y1_train, y2_train, x1_val, x2_val, y1_val, y2_val = \
+        prepare_kyoto_classification(dev_mode=dev_mode, juman=juman, char_emb_dim=char_emb_dim)
 
     word_vocab_size = len(word_vocab)
 
@@ -495,6 +505,54 @@ def do_classification_task(dev_mode=False, juman=True, attention=False, char_emb
                epochs=5000, batch_size=BATCH_SIZE,
                )
 
+
+def do_aozora_classification(dev_mode=False, attention=False, char_emb_dim=CHAR_EMB_DIM):
+
+    global MAX_SENTENCE_LENGTH
+    MAX_SENTENCE_LENGTH = 100
+
+    with open("aozora_3_splited_data.pickle", "rb") as f:
+        (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab,
+                     x1_train, x2_train, y_train, x1_val, x2_val, y_val) = pickle.load(f)
+    word_vocab_size = len(word_vocab)
+
+    num_class = 3
+
+    print("Char Only")
+    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
+    stopper = EarlyStopping(monitor='val_loss', patience=50)
+    model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class, attention=attention, word=False)
+    model2.compile(loss='categorical_crossentropy',
+                   optimizer=sgd,
+                   metrics=['acc'],)
+    model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
+               epochs=5000, batch_size=BATCH_SIZE,
+               callbacks=[reducelr, stopper])
+
+    print("Word Only-14 classes")
+    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    model4 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
+                                classes=num_class, attention=attention, char=False)
+    model4.compile(loss='categorical_crossentropy',
+                   optimizer=sgd,
+                   metrics=['acc'])
+    model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
+               epochs=500, batch_size=BATCH_SIZE,
+               callbacks=[reducelr, stopper])
+
+    print("Word+Char-14 classes")
+    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    model6 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
+                                classes=num_class, attention=attention, word=True, char=True)
+    model6.compile(loss='categorical_crossentropy',
+                   optimizer=sgd,
+                   metrics=['acc'])
+    model6.fit([x1_train, x2_train], y_train, validation_data=([x1_val, x2_val], y_val),
+               epochs=5000, batch_size=BATCH_SIZE,
+               callbacks=[reducelr, stopper])
+
+
 if __name__ == "__main__":
     # Test Vocab
     # print(build_jp_embedding())
@@ -546,4 +604,6 @@ if __name__ == "__main__":
     # print("no attention")
     # kyoto_classification()
     # print("attention")
-    do_classification_task(attention=False, task="kyoto")
+    # do_kyoto_classification_task(attention=False, task="kyoto")
+    # prepare_aozora_classification()
+    do_aozora_classification()
