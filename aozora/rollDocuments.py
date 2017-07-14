@@ -3,15 +3,16 @@ import pickle
 import numpy
 from six import string_types
 
-MAX_DOCUMENTS = 500
-MAX_SENTENCE_LENGTH = 100
-MAX_SENTENCE_NUM = 1000
+MAX_DOCUMENTS = 50000
+MAX_SENTENCE_LENGTH = 1000
+MAX_SENTENCE_NUM = 5000
 
 document_list = pandas.read_csv("aozora_word_list_utf8.csv")
-label_names = ["NDC 3", "NDC 7", "NDC 9"]
+label_names = ["NDC 3", "NDC 4", "NDC 7", "NDC 9"]
 class_1 = []
 class_2 = []
 class_3 = []
+class_4 = []
 rows, columns = document_list.shape
 for i in range(rows):
     category = document_list.get_value(i, "分類番号")
@@ -25,8 +26,15 @@ for i in range(rows):
             class_2.append(d_file_name)
         if category == label_names[2] and len(class_3) < MAX_DOCUMENTS:
             class_3.append(d_file_name)
-print(len(class_1), len(class_2), len(class_3))
+        if category == label_names[3] and len(class_4) < MAX_DOCUMENTS:
+            class_4.append(d_file_name)
+print(len(class_1), len(class_2), len(class_3), len(class_4))
 del document_list
+
+class_1 = class_1+class_2+class_3
+class_2 = class_4
+class_3 = []
+label_names = ["NDC 3,4,7", "NDC 9"]
 
 
 def getI(w, d):
@@ -59,17 +67,21 @@ for n, class_n in enumerate([class_1, class_2, class_3]):
                     word = line[3]
                     word_sequence.append(word)
                     flat_sequences.append(word)
-        print(len(class_sequences))
+        # print(len(class_sequences))
         # data[label_names[n]] = class_sequences[:200]
         num_words = len(flat_sequences)
+        print(num_words)
         num_split_pos = (num_words-1) // MAX_SENTENCE_LENGTH
-        random_split_poses = numpy.random.randint(low=0, high=num_split_pos, size=MAX_SENTENCE_NUM)
+        random_split_poses = list(range(num_split_pos))
+        numpy.random.shuffle(random_split_poses)
+        random_split_poses = random_split_poses[:MAX_SENTENCE_NUM]
         for split_pose in random_split_poses:
-            sample_sequences.append(flat_sequences[split_pose:split_pose+MAX_SENTENCE_LENGTH])
+            sample_sequences.append(flat_sequences[split_pose*MAX_SENTENCE_LENGTH:split_pose+MAX_SENTENCE_LENGTH])
+        print(len(sample_sequences))
         data[label_names[n]] = sample_sequences
     else:
         continue
 
 
-with open("aozora_3.pickle", "wb") as f:
+with open("aozora_big_5000_2lei.pickle", "wb") as f:
     pickle.dump(data, f)

@@ -158,7 +158,7 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
 
 
 def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_WIDTH,
-                       mode="padding"):
+                       mode="padding", cnn_encoder=True):
     # build the feature computed by cnn for each word in the sentence. used to input to the next rnn.
     # expected input: every #comp_width int express a character.
     # mode:
@@ -175,39 +175,44 @@ def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_
     word_input = Input(shape=(COMP_WIDTH * MAX_WORD_LENGTH,))
     char_embedding = \
         Embedding(input_dim=vocab_size, output_dim=char_emb_dim, weights=[init_weight], trainable=True)(word_input)
-    if mode == "average":
-        # 2nd layer average the #comp_width components of every character
-        char_embedding = AveragePooling1D(pool_size=comp_width, strides=comp_width, padding='valid')
-        # TODO: conv, filter width 1 2 3, feature maps 50 100 150
-        feature1 = Conv1D(filters=50, kernel_size=1, activation='relu')(char_embedding)
-        feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
-        feature2 = Conv1D(filters=100, kernel_size=2, activation='relu')(char_embedding)
-        feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-        feature3 = Conv1D(filters=150, kernel_size=3, activation='relu')(char_embedding)
-        feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
-        feature = concatenate([feature1, feature2])
-    elif mode == "padding":
-        # print(char_embedding._keras_shape)
-        # TODO: conv, filter with [1, 2, 3]*#comp_width, feature maps 50 100 150
-        feature1 = Conv1D(filters=50, kernel_size=1 * comp_width, strides=comp_width, activation='relu')(char_embedding)
-        feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
-        feature2 = Conv1D(filters=100, kernel_size=2 * comp_width, strides=comp_width, activation='relu')(char_embedding)
-        feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-        feature3 = Conv1D(filters=150, kernel_size=3 * comp_width, strides=comp_width, activation='relu')(char_embedding)
-        feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
-        feature = concatenate([feature1, feature2])
-    feature = Flatten()(feature)
-    # print(feature._keras_shape)
-    feature = Highway()(feature)
+    # print("char_embedding:", char_embedding._keras_shape)
+    if cnn_encoder:
+        if mode == "average":
+            # 2nd layer average the #comp_width components of every character
+            char_embedding = AveragePooling1D(pool_size=comp_width, strides=comp_width, padding='valid')
+            # conv, filter width 1 2 3, feature maps 50 100 150
+            feature1 = Conv1D(filters=50, kernel_size=1, activation='relu')(char_embedding)
+            feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
+            feature2 = Conv1D(filters=100, kernel_size=2, activation='relu')(char_embedding)
+            feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
+            feature3 = Conv1D(filters=150, kernel_size=3, activation='relu')(char_embedding)
+            feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
+            feature = concatenate([feature1, feature2])
+        elif mode == "padding":
+            # print(char_embedding._keras_shape)
+            # conv, filter with [1, 2, 3]*#comp_width, feature maps 50 100 150
+            feature1 = Conv1D(filters=50, kernel_size=1 * comp_width, strides=comp_width, activation='relu')(char_embedding)
+            feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
+            feature2 = Conv1D(filters=100, kernel_size=2 * comp_width, strides=comp_width, activation='relu')(char_embedding)
+            feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
+            feature3 = Conv1D(filters=150, kernel_size=3 * comp_width, strides=comp_width, activation='relu')(char_embedding)
+            feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
+            feature = concatenate([feature1, feature2])
+        feature = Flatten()(feature)
+        # print(feature._keras_shape)
+        feature = Highway()(feature)
+    else:
+        feature = Flatten()(char_embedding)
     word_feature_encoder = Model(word_input, feature)
     return word_feature_encoder
 
 
 def build_sentence_rnn(real_vocab_number, word_vocab_size=10, classes=2, attention=False, dropout=0, word=True,
-                       char=True):
+                       char=True, model="rnn", cnn_encoder=True):
+    print(MAX_SENTENCE_LENGTH)
     # build the rnn of words, use the output of build_word_feature as the feature of each word
     if char:
-        word_feature_encoder = build_word_feature(vocab_size=real_vocab_number)
+        word_feature_encoder = build_word_feature(vocab_size=real_vocab_number, cnn_encoder=cnn_encoder)
         sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype='int32')
         word_feature_sequence = TimeDistributed(word_feature_encoder)(sentence_input)
         # print(word_feature_sequence._keras_shape)
@@ -216,22 +221,34 @@ def build_sentence_rnn(real_vocab_number, word_vocab_size=10, classes=2, attenti
         word_embedding_sequence = Embedding(input_dim=word_vocab_size, output_dim=WORD_DIM)(sentence_word_input)
     if char and word:
         word_feature_sequence = concatenate([word_feature_sequence, word_embedding_sequence], axis=2)
-        # print(word_feature_sequence._keras_shape)
     if word and not char:
         word_feature_sequence = word_embedding_sequence
-    if attention:
-        lstm_rnn = Bidirectional(LSTM(150, dropout=dropout, return_sequences=True))(word_feature_sequence)
-        lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
-        lstm_rnn = AttentionWithContext()(lstm_rnn)
-    else:
-        lstm_rnn = Bidirectional(LSTM(150, dropout=dropout, return_sequences=False))(word_feature_sequence)
-    # print(lstm_rnn._keras_shape)
-    # lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
+    print(word_feature_sequence._keras_shape)
+    if model=="rnn":
+        if attention:
+            lstm_rnn = Bidirectional(LSTM(150, dropout=dropout, return_sequences=True))(word_feature_sequence)
+            lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
+            lstm_rnn = AttentionWithContext()(lstm_rnn)
+        else:
+            lstm_rnn = Bidirectional(LSTM(150, dropout=dropout, return_sequences=False))(word_feature_sequence)
+        # print(lstm_rnn._keras_shape)
+        # lstm_rnn = TimeDistributed(Highway())(lstm_rnn)
+        x = lstm_rnn
+    elif model=="cnn":
+        x = Conv1D(128, 5, activation='relu')(word_feature_sequence)
+        x = MaxPooling1D(5)(x)
+        x = Conv1D(128, 5, activation='relu')(x)
+        # x = MaxPooling1D(5)(x)
+        # x = Conv1D(128, 5, activation='relu')(x) # shallower as we only use 100-word sentences
+        # x = MaxPooling1D(35)(x)  # global max pooling
+        x = MaxPooling1D(15)(x)  # global max pooling
+        x = Flatten()(x)
+        x = Dense(128, activation='relu')(x)
     if classes < 2:
         print("class number cannot less than 2")
         exit(1)
     else:
-        preds = Dense(classes, activation='softmax')(lstm_rnn)
+        preds = Dense(classes, activation='softmax')(x)
     if char and not word:
         sentence_model = Model(sentence_input, preds)
     if word and not char:
@@ -364,15 +381,15 @@ def prepare_aozora_classification(dev_mode=False):
     #                                         sentence_text=x) for x in sentence_input_text]
     # preprocess data
 
-    # read data. Shape: {"NDC 3": 100 word sequence * 1000, "NDC 7":..., "NDC 9": ...}
-    data = pickle.load((open("aozora/aozora_3.pickle", "rb")))
+    # read data. Shape: {"NDC 3,4,7": 1000 word sequence * 5000, "NDC 9": ...}
+    data = pickle.load((open("aozora/aozora_big_5000_2lei.pickle", "rb")))
 
     label_names = list(data.keys())
 
     data_size = len(data[label_names[0]]) * len(label_names)
 
     global MAX_SENTENCE_LENGTH
-    MAX_SENTENCE_LENGTH = 100
+    MAX_SENTENCE_LENGTH = 1000
 
     # change the sentence into matrix of word sequence
     data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
@@ -424,7 +441,7 @@ def prepare_aozora_classification(dev_mode=False):
     print(y_train.sum(axis=0))
     print(y_val.sum(axis=0))
 
-    with open("aozora_3_splited_data.pickle", "wb") as f:
+    with open("aozora_big_2_data.pickle", "wb") as f:
         pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, word_vocab,
                      x1_train, x2_train, y_train, x1_val, x2_val, y_val), f)
 
@@ -435,7 +452,7 @@ def prepare_aozora_classification(dev_mode=False):
 def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, char_emb_dim=CHAR_EMB_DIM, task="kyoto"):
     full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, \
     x1_train, x2_train, y1_train, y2_train, x1_val, x2_val, y1_val, y2_val = \
-        prepare_kyoto_classification(dev_mode=dev_mode, juman=juman, char_emb_dim=char_emb_dim)
+        prepare_kyoto_classification(dev_mode=dev_mode, juman=juman)
 
     word_vocab_size = len(word_vocab)
 
@@ -443,13 +460,15 @@ def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, ch
 
     print("Char Only-2 classes")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
+    stopper = EarlyStopping(monitor='val_loss', patience=50)
     model1 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2, attention=attention, word=False)
     model1.compile(loss='categorical_crossentropy',
                    optimizer=sgd,
                    metrics=['acc'])
     model1.fit(x1_train, y1_train, validation_data=(x1_val, y1_val),
-               epochs=5000, batch_size=BATCH_SIZE,
-               )
+               epochs=500, batch_size=BATCH_SIZE,
+               callbacks=[reducelr, stopper])
 
     print("Char Only-14 classes")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
@@ -458,8 +477,8 @@ def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, ch
                    optimizer=sgd,
                    metrics=['acc'])
     model2.fit(x1_train, y2_train, validation_data=(x1_val, y2_val),
-               epochs=5000, batch_size=BATCH_SIZE,
-               )
+               epochs=500, batch_size=BATCH_SIZE,
+               callbacks=[reducelr, stopper])
 
     print("Word Only-2 classes")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
@@ -470,7 +489,7 @@ def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, ch
                    metrics=['acc'])
     model3.fit(x2_train, y1_train, validation_data=(x2_val, y1_val),
                epochs=500, batch_size=BATCH_SIZE,
-               )
+               callbacks=[reducelr, stopper])
 
     print("Word Only-14 classes")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
@@ -481,7 +500,7 @@ def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, ch
                    metrics=['acc'])
     model4.fit(x2_train, y2_train, validation_data=(x2_val, y2_val),
                epochs=500, batch_size=BATCH_SIZE,
-               )
+               callbacks=[reducelr, stopper])
 
     print("Word+Char-2 classes")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
@@ -491,8 +510,8 @@ def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, ch
                    optimizer=sgd,
                    metrics=['acc'])
     model5.fit([x1_train, x2_train], y1_train, validation_data=([x1_val, x2_val], y1_val),
-               epochs=5000, batch_size=BATCH_SIZE,
-               )
+               epochs=500, batch_size=BATCH_SIZE,
+               callbacks=[reducelr, stopper])
 
     print("Word+Char-14 classes")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
@@ -502,38 +521,40 @@ def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, ch
                    optimizer=sgd,
                    metrics=['acc'])
     model6.fit([x1_train, x2_train], y2_train, validation_data=([x1_val, x2_val], y2_val),
-               epochs=5000, batch_size=BATCH_SIZE,
-               )
+               epochs=500, batch_size=BATCH_SIZE,
+               callbacks=[reducelr, stopper])
 
 
-def do_aozora_classification(dev_mode=False, attention=False, char_emb_dim=CHAR_EMB_DIM):
+def do_aozora_classification(dev_mode=False, attention=False, cnn_encoder=True):
 
     global MAX_SENTENCE_LENGTH
-    MAX_SENTENCE_LENGTH = 100
+    MAX_SENTENCE_LENGTH = 1000
 
-    with open("aozora_3_splited_data.pickle", "rb") as f:
+    with open("aozora_big_2_data.pickle", "rb") as f:
         (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab,
                      x1_train, x2_train, y_train, x1_val, x2_val, y_val) = pickle.load(f)
     word_vocab_size = len(word_vocab)
 
-    num_class = 3
+    num_class = 2
 
     print("Char Only")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
     reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
     stopper = EarlyStopping(monitor='val_loss', patience=50)
-    model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class, attention=attention, word=False)
+    model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
+                                attention=attention, word=False, cnn_encoder=cnn_encoder)
     model2.compile(loss='categorical_crossentropy',
                    optimizer=sgd,
                    metrics=['acc'],)
     model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-               epochs=5000, batch_size=BATCH_SIZE,
+               epochs=500, batch_size=BATCH_SIZE,
                callbacks=[reducelr, stopper])
 
-    print("Word Only-14 classes")
+    print("Word Only")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
     model4 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                classes=num_class, attention=attention, char=False)
+                                classes=num_class, attention=attention, char=False,
+                                cnn_encoder=cnn_encoder)
     model4.compile(loss='categorical_crossentropy',
                    optimizer=sgd,
                    metrics=['acc'])
@@ -544,12 +565,13 @@ def do_aozora_classification(dev_mode=False, attention=False, char_emb_dim=CHAR_
     print("Word+Char-14 classes")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
     model6 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                classes=num_class, attention=attention, word=True, char=True)
+                                classes=num_class, attention=attention, word=True, char=True,
+                                cnn_encoder = cnn_encoder)
     model6.compile(loss='categorical_crossentropy',
                    optimizer=sgd,
                    metrics=['acc'])
     model6.fit([x1_train, x2_train], y_train, validation_data=([x1_val, x2_val], y_val),
-               epochs=5000, batch_size=BATCH_SIZE,
+               epochs=500, batch_size=BATCH_SIZE,
                callbacks=[reducelr, stopper])
 
 
@@ -606,4 +628,7 @@ if __name__ == "__main__":
     # print("attention")
     # do_kyoto_classification_task(attention=False, task="kyoto")
     # prepare_aozora_classification()
-    do_aozora_classification()
+    print("no cnn encoder")
+    do_aozora_classification(cnn_encoder=False)
+    print("use cnn encoder")
+    do_aozora_classification(cnn_encoder=True)
