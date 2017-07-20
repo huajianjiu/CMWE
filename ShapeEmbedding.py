@@ -575,6 +575,58 @@ def do_aozora_classification(dev_mode=False, attention=False, cnn_encoder=True):
                callbacks=[reducelr, stopper])
 
 
+def test_classifier(attention=False, cnn_encoder=True):
+    x1_train_0 = numpy.random.randint(low=0, high=5, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
+    x1_train_1 = numpy.random.randint(low=5, high=10, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
+    x2_train_0 = numpy.random.randint(low=0, high=5, size=(500, MAX_SENTENCE_LENGTH))
+    x2_train_1 = numpy.random.randint(low=5, high=10, size=(500, MAX_SENTENCE_LENGTH))
+    x1_data = numpy.concatenate((x1_train_0, x1_train_1), axis=0)
+    x2_data = numpy.concatenate((x2_train_0, x2_train_1), axis=0)
+    labels = [0] * 500 + [1] * 500
+    y_data = to_categorical(numpy.asarray(labels))
+
+    indices = numpy.arange(x1_data.shape[0])
+    numpy.random.shuffle(indices)
+    data_char = x1_data[indices]
+    data_word = x2_data[indices]
+    y_data = y_data[indices]
+    nb_validation_samples = int(VALIDATION_SPLIT * data_char.shape[0])
+
+    x1_train = data_char[:-nb_validation_samples]
+    x2_train = data_word[:-nb_validation_samples]
+    y_train = y_data[:-nb_validation_samples]
+    x1_val = data_char[-nb_validation_samples:]
+    x2_val = data_word[-nb_validation_samples:]
+    y_val = y_data[-nb_validation_samples:]
+
+    word_vocab_size = 10
+
+    print("Char Only")
+    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
+    stopper = EarlyStopping(monitor='val_loss', patience=50)
+    model2 = build_sentence_rnn(real_vocab_number=10, classes=2,
+                                attention=attention, word=False, cnn_encoder=cnn_encoder)
+    model2.compile(loss='categorical_crossentropy',
+                   optimizer=sgd,
+                   metrics=['acc'],)
+    model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
+               epochs=500, batch_size=BATCH_SIZE,
+               callbacks=[reducelr, stopper])
+
+    print("Word Only")
+    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    model4 = build_sentence_rnn(real_vocab_number=10, word_vocab_size=word_vocab_size,
+                                classes=2, attention=attention, char=False,
+                                cnn_encoder=cnn_encoder)
+    model4.compile(loss='categorical_crossentropy',
+                   optimizer=sgd,
+                   metrics=['acc'])
+    model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
+               epochs=500, batch_size=BATCH_SIZE,
+               callbacks=[reducelr, stopper])
+
+
 if __name__ == "__main__":
     # Test Vocab
     # print(build_jp_embedding())
@@ -628,7 +680,8 @@ if __name__ == "__main__":
     # print("attention")
     # do_kyoto_classification_task(attention=False, task="kyoto")
     # prepare_aozora_classification()
-    print("no cnn encoder")
-    do_aozora_classification(cnn_encoder=False)
-    print("use cnn encoder")
-    do_aozora_classification(cnn_encoder=True)
+    # print("no cnn encoder")
+    # do_aozora_classification(cnn_encoder=False)
+    # print("use cnn encoder")
+    # do_aozora_classification(cnn_encoder=True)
+    test_classifier()
