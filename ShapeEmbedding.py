@@ -576,9 +576,9 @@ def do_aozora_classification(dev_mode=False, attention=False, cnn_encoder=True):
 
 
 def test_classifier(attention=False, cnn_encoder=True):
-    x1_train_0 = numpy.random.normal(mean=3.0, scale=2.0, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
+    x1_train_0 = numpy.random.normal(loc=4.0, scale=2.0, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
     x1_train_1 = numpy.random.uniform(low=5, high=10, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
-    x2_train_0 = numpy.random.normal(mean=3.0, scale=2.0, size=(500, MAX_SENTENCE_LENGTH))
+    x2_train_0 = numpy.random.normal(loc=4.0, scale=2.0, size=(500, MAX_SENTENCE_LENGTH))
     x2_train_1 = numpy.random.uniform(low=5, high=10, size=(500, MAX_SENTENCE_LENGTH))
     x1_data = numpy.concatenate((x1_train_0, x1_train_1), axis=0)
     x2_data = numpy.concatenate((x2_train_0, x2_train_1), axis=0)
@@ -611,7 +611,7 @@ def test_classifier(attention=False, cnn_encoder=True):
                    optimizer=sgd,
                    metrics=['acc'],)
     model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-               epochs=500, batch_size=BATCH_SIZE,
+               epochs=15, batch_size=BATCH_SIZE,
                callbacks=[reducelr, stopper])
 
     print("Word Only")
@@ -623,7 +623,7 @@ def test_classifier(attention=False, cnn_encoder=True):
                    optimizer=sgd,
                    metrics=['acc'])
     model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
-               epochs=500, batch_size=BATCH_SIZE,
+               epochs=15, batch_size=BATCH_SIZE,
                callbacks=[reducelr, stopper])
 
 
