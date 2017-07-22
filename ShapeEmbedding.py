@@ -7,13 +7,14 @@ from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1
 from keras.legacy.layers import Highway
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping, CSVLogger
 from keras.utils.np_utils import to_categorical
-from getShapeCode import get_all_word_bukken
 from keras.preprocessing.sequence import pad_sequences
 from attention import AttentionWithContext
+from getShapeCode import get_all_word_bukken
 
-MAX_SENTENCE_LENGTH = 20
-MAX_WORD_LENGTH = 4
-COMP_WIDTH = 3
+# MAX_SENTENCE_LENGTH = 739  # large number as 739 makes cudnn die
+MAX_SENTENCE_LENGTH = 500
+MAX_WORD_LENGTH = 3
+COMP_WIDTH = 2
 CHAR_EMB_DIM = 15
 VALIDATION_SPLIT = 0.2
 BATCH_SIZE = 100
@@ -73,15 +74,17 @@ def get_vocab(opts=None):
     use_component = True  # True for component level False for chara level
 
     _, _, hirakana_list = _make_kana_convertor()
-    addition_translate = str.maketrans("ッャュョヮヵヶ", "っゃゅょゎゕゖ")
+    addition_translate = str.maketrans("ッャュョヮヵヶ?？⁇⁈⁉﹗!‼！″＂“”『』「」‘’´｀:;。、・"
+                                       "＼([｛)]｝〔〕【〘〖】〙〗｟｠«»ー－—–‐゠〜～〳〵￥",
+                                       "っゃゅょゎゕゖ?????!!!!\"\"\"\"\"\"'''''':;.,･"
+                                       "\\((()))()((()))()《》-----=~~/\\$")
 
     hira_punc_number_latin = "".join(hirakana_list) + string.punctuation + \
-                             ',)]｝、〕〉》」』】〙〗〟’｠»ゝゞー' \
                              'ヴゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇷ゚ㇺㇻㇼㇽㇾㇿ々〻' \
-                             '‐゠–〜～?!‼⁇⁈⁉・:;？、！/。.([｛〔〈《「『【〘〖〝‘“｟«—…‥〳〴〵･' \
+                             '〟ゝゞ〈《〉》〝…‥〴' \
                              '1234567890' \
                              'abcdefghijklmnopqrstuvwxyz ' \
-                             '○●☆★■♪ヾω*´｀≧∇≦※→←↑↓＼″'
+                             '○●☆★■♪ヾω*≧∇≦※→←↑↓'
     # note: the space and punctuations in Jp sometimes show emotion
 
     vocab_chara, vocab_bukken, chara_bukken = get_all_word_bukken()
@@ -99,11 +102,11 @@ def get_vocab(opts=None):
     del vocab_chara
     del chara_bukken
 
-    return full_vocab, real_vocab_number, chara_bukken_revised
+    return full_vocab, real_vocab_number, chara_bukken_revised, addition_translate, hira_punc_number_latin
 
 
-def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sentence_text,
-                       mode="padding", comp_width=COMP_WIDTH):
+def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sentence_text, addition_translate,
+                        mode="padding", comp_width=COMP_WIDTH):
     # mode:
     # average: will repeat the original index to #comp_width for the process of the embedding layer
     # padding: will pad the original index to #comp_width with zero for the process of the embedding layer
@@ -117,7 +120,6 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
     # convert kata to hira
     _, katakana2hiragana, _ = _make_kana_convertor()
     text = katakana2hiragana(text)
-    addition_translate = str.maketrans("ッャュョヮヵヶ￣▽〇", "っゃゅょゎゕゖ ∇○")  # additional transformation
     text = text.translate(addition_translate)
     # finally, lowercase
     text = text.lower()
@@ -129,7 +131,10 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
     # print(text)
     if mode == "average":
         for c in text:
-            i = ch2id[c]
+            try:
+                i = ch2id[c]
+            except KeyError:
+                continue
             if i > real_vocab_number:
                 comps = chara_bukken_revised[i]
                 if len(comps) >= comp_width:
@@ -143,7 +148,10 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
     elif mode == "padding":
         for c in text:
             # print(c)
-            i = ch2id[c]
+            try:
+                i = ch2id[c]
+            except KeyError:
+                continue
             # print(i)
             if i > real_vocab_number:
                 comps = chara_bukken_revised[i]
@@ -185,21 +193,22 @@ def build_word_feature(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_
             feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
             feature2 = Conv1D(filters=100, kernel_size=2, activation='relu')(char_embedding)
             feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-            feature3 = Conv1D(filters=150, kernel_size=3, activation='relu')(char_embedding)
-            feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
+            # feature3 = Conv1D(filters=150, kernel_size=3, activation='relu')(char_embedding)
+            # feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
             feature = concatenate([feature1, feature2])
         elif mode == "padding":
             # print(char_embedding._keras_shape)
             # conv, filter with [1, 2, 3]*#comp_width, feature maps 50 100 150
+            print(comp_width)
             feature1 = Conv1D(filters=50, kernel_size=1 * comp_width, strides=comp_width, activation='relu')(
                 char_embedding)
             feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
             feature2 = Conv1D(filters=100, kernel_size=2 * comp_width, strides=comp_width, activation='relu')(
                 char_embedding)
             feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-            feature3 = Conv1D(filters=150, kernel_size=3 * comp_width, strides=comp_width, activation='relu')(
-                char_embedding)
-            feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
+            # feature3 = Conv1D(filters=150, kernel_size=3 * comp_width, strides=comp_width, activation='relu')(
+            #     char_embedding)
+            # feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
             feature = concatenate([feature1, feature2])
         feature = Flatten()(feature)
         # print(feature._keras_shape)
@@ -266,7 +275,7 @@ def prepare_kyoto_classification(dev_mode=False, juman=True):
     # expected input. a sequence of the forward output of build_word_feature
 
     # get vocab
-    full_vocab, real_vocab_number, chara_bukken_revised = get_vocab()
+    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate,_ = get_vocab()
 
     # if isinstance(sentence_input_text, str):
     #     sentence_input_text = sentence_input_text.split()
@@ -322,7 +331,8 @@ def prepare_kyoto_classification(dev_mode=False, juman=True):
                 else:
                     word_index = word_vocab.index(word)
                 char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                                chara_bukken_revised=chara_bukken_revised, sentence_text=word)
+                                                chara_bukken_revised=chara_bukken_revised, sentence_text=word,
+                                                addition_translate=addtional_translate)
                 if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                     char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
                 elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
@@ -451,7 +461,7 @@ def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, ch
 
 def prepare_aozora_classification(dev_mode=False):
     # get vocab
-    full_vocab, real_vocab_number, chara_bukken_revised = get_vocab()
+    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
 
     # if isinstance(sentence_input_text, str):
     #     sentence_input_text = sentence_input_text.split()
@@ -487,7 +497,8 @@ def prepare_aozora_classification(dev_mode=False):
                 else:
                     word_index = word_vocab.index(word)
                 char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                                chara_bukken_revised=chara_bukken_revised, sentence_text=word)
+                                                chara_bukken_revised=chara_bukken_revised,
+                                                addition_translate=addtional_translate, sentence_text=word)
                 if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                     char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
                 elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
@@ -579,13 +590,13 @@ def do_aozora_classification(dev_mode=False, attention=False, cnn_encoder=True):
 
 def prepare_ChnSenti_classification(dev_mode=False):
     # get vocab
-    full_vocab, real_vocab_number, chara_bukken_revised = get_vocab()
+    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
 
     TEXT_DATA_DIR = "ChnSentiCorp_htl_ba_6000/"
     texts = []  # list of text samples
     labels_index = {}  # dictionary mapping label name to numeric id
     labels = []  # list of label ids
-    maxlen = 0
+    # maxlen = 0    # used the max length of sentence in the data. but large number makes cudnn die
     for name in sorted(os.listdir(TEXT_DATA_DIR)):
         path = os.path.join(TEXT_DATA_DIR, name)
         if os.path.isdir(path):
@@ -597,11 +608,16 @@ def prepare_ChnSenti_classification(dev_mode=False):
                     f = open(fpath)
                 else:
                     f = open(fpath, encoding='gbk')
-                t = f.read()
+                try:
+                    t = f.read()
+                except UnicodeDecodeError:
+                    continue
                 t = t.translate(str.maketrans("", "", "\n"))
-                t_list = jieba.cut(t, cut_all=False)
-                if len(t_list) > maxlen:
-                    maxlen = len(t_list)
+                t_list = list(jieba.cut(t, cut_all=False))
+                # if len(t_list) > maxlen:
+                #     maxlen = len(t_list)
+                if len(t_list) > MAX_SENTENCE_LENGTH:
+                    t_list = t_list[:MAX_SENTENCE_LENGTH]
                 texts.append(t_list)
                 f.close()
                 labels.append(label_id)
@@ -610,12 +626,8 @@ def prepare_ChnSenti_classification(dev_mode=False):
 
     data_size = len(texts)
 
-    global MAX_SENTENCE_LENGTH
-    MAX_SENTENCE_LENGTH = maxlen
-    global MAX_WORD_LENGTH
-    MAX_WORD_LENGTH = 3
-    global COMP_WIDTH
-    COMP_WIDTH = 2
+    # global MAX_SENTENCE_LENGTH
+    # MAX_SENTENCE_LENGTH = maxlen
 
     # change the sentence into matrix of word sequence
     data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
@@ -632,7 +644,9 @@ def prepare_ChnSenti_classification(dev_mode=False):
             else:
                 word_index = word_vocab.index(word)
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                            chara_bukken_revised=chara_bukken_revised, sentence_text=word)
+                                            chara_bukken_revised=chara_bukken_revised,
+                                            addition_translate=addtional_translate,
+                                            sentence_text=word)
             if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
             elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
@@ -678,14 +692,14 @@ def do_ChnSenti_classification(dev_mode=False, attention=False, cnn_encoder=True
     print("Char Only")
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
     reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
-    stopper = EarlyStopping(monitor='val_loss', patience=50)
+    stopper = EarlyStopping(monitor='val_loss', patience=20)
     model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
                                 attention=attention, word=False, cnn_encoder=cnn_encoder)
     model2.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
+                   optimizer='rmsprop',
                    metrics=['acc'], )
     model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-               epochs=500, batch_size=BATCH_SIZE,
+               epochs=100, batch_size=BATCH_SIZE,
                callbacks=[reducelr, stopper])
 
     print("Word Only")
@@ -694,23 +708,23 @@ def do_ChnSenti_classification(dev_mode=False, attention=False, cnn_encoder=True
                                 classes=num_class, attention=attention, char=False,
                                 cnn_encoder=cnn_encoder)
     model4.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
+                   optimizer='rmsprop',
                    metrics=['acc'])
     model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
-               epochs=500, batch_size=BATCH_SIZE,
+               epochs=100, batch_size=BATCH_SIZE,
                callbacks=[reducelr, stopper])
 
-    print("Word+Char")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    model6 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                classes=num_class, attention=attention, word=True, char=True,
-                                cnn_encoder=cnn_encoder)
-    model6.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'])
-    model6.fit([x1_train, x2_train], y_train, validation_data=([x1_val, x2_val], y_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
+    # print("Word+Char")
+    # sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    # model6 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
+    #                             classes=num_class, attention=attention, word=True, char=True,
+    #                             cnn_encoder=cnn_encoder)
+    # model6.compile(loss='categorical_crossentropy',
+    #                optimizer=sgd,
+    #                metrics=['acc'])
+    # model6.fit([x1_train, x2_train], y_train, validation_data=([x1_val, x2_val], y_val),
+    #            epochs=500, batch_size=BATCH_SIZE,
+    #            callbacks=[reducelr, stopper])
 
 
 def test_classifier(attention=False, cnn_encoder=True):
