@@ -576,10 +576,10 @@ def do_aozora_classification(dev_mode=False, attention=False, cnn_encoder=True):
 
 
 def test_classifier(attention=False, cnn_encoder=True):
-    x1_train_0 = numpy.random.randint(low=0, high=5, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
-    x1_train_1 = numpy.random.randint(low=5, high=10, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
-    x2_train_0 = numpy.random.randint(low=0, high=5, size=(500, MAX_SENTENCE_LENGTH))
-    x2_train_1 = numpy.random.randint(low=5, high=10, size=(500, MAX_SENTENCE_LENGTH))
+    x1_train_0 = numpy.random.normal(mean=3.0, scale=2.0, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
+    x1_train_1 = numpy.random.uniform(low=5, high=10, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
+    x2_train_0 = numpy.random.normal(mean=3.0, scale=2.0, size=(500, MAX_SENTENCE_LENGTH))
+    x2_train_1 = numpy.random.uniform(low=5, high=10, size=(500, MAX_SENTENCE_LENGTH))
     x1_data = numpy.concatenate((x1_train_0, x1_train_1), axis=0)
     x2_data = numpy.concatenate((x2_train_0, x2_train_1), axis=0)
     labels = [0] * 500 + [1] * 500
