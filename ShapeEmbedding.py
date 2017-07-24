@@ -745,12 +745,12 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
     char_vocab_size = len(char_vocab)
 
     num_class = 2
+    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
+    stopper = EarlyStopping(monitor='val_loss', patience=20)
 
     if char_shape_only:
         print("Char Shape Only")
-        sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-        reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
-        stopper = EarlyStopping(monitor='val_loss', patience=20)
         model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
                                     attention=attention, word=False, char=False, cnn_encoder=cnn_encoder)
         model2.compile(loss='categorical_crossentropy',
@@ -762,9 +762,6 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
 
     if char_only:
         print("Char Only")
-        sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-        reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
-        stopper = EarlyStopping(monitor='val_loss', patience=20)
         model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
                                     classes=num_class,
                                     attention=attention, word=False, char=True, char_shape=False, cnn_encoder=cnn_encoder)
@@ -777,7 +774,6 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
 
     if word_only:
         print("Word Only")
-        sgd = optimizers.SGD(lr=0.01, momentum=0.9)
         model4 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
                                     classes=num_class, attention=attention, char_shape=False, char=False,
                                     cnn_encoder=cnn_encoder)
