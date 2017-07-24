@@ -739,7 +739,8 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
 def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_encoder=True,
                                char_shape_only=True, char_only=True, word_only=True):
     (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
-     x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val) = prepare_ChnSenti_classification(dev_mode)
+     x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val) \
+        = prepare_ChnSenti_classification(filename=filename, dev_mode=dev_mode)
     word_vocab_size = len(word_vocab)
     char_vocab_size = len(char_vocab)
 
