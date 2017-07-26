@@ -1,2 +1,1 @@
-# CMWE
-Overfitting quickly... need to be solved
+# Convolutional Neural Network Encoder for CJK Ideographs
