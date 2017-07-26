@@ -1058,6 +1058,9 @@ if __name__ == "__main__":
     print("DATASET: CH8000 SKIPUNK", flush=True)
     do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_8000/", char_shape_only=True, char_only=True,
                                word_only=True, skip_unk=True)
+    print("DATASET: CH10000 SKIPUNK", flush=True)
+    do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
+                               word_only=True, skip_unk=True)
     print("DATASET: CH4000", flush=True)
     do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_4000/", char_shape_only=True, char_only=True, word_only=True)
     print("DATASET: CH6000", flush=True)
