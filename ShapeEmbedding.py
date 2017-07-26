@@ -107,7 +107,7 @@ def get_vocab(opts=None):
 
 
 def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sentence_text, addition_translate,
-                        mode="padding", comp_width=COMP_WIDTH):
+                        mode="padding", comp_width=COMP_WIDTH, skip_unknown=True):
     # mode:
     # average: will repeat the original index to #comp_width for the process of the embedding layer
     # padding: will pad the original index to #comp_width with zero for the process of the embedding layer
@@ -135,7 +135,10 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
             try:
                 i = ch2id[c]
             except KeyError:
-                continue
+                if skip_unknown:
+                    continue  # skip unknown words
+                else:
+                    i = 0     # assign 0 (</s>) to unknown words
             if i > real_vocab_number:
                 comps = chara_bukken_revised[i]
                 if len(comps) >= comp_width:
@@ -152,7 +155,10 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
             try:
                 i = ch2id[c]
             except KeyError:
-                continue
+                if skip_unknown:
+                    continue  # skip unknown words
+                else:
+                    i = 0     # assign 0 (</s>) to unknown words
             # print(i)
             if i > real_vocab_number:
                 comps = chara_bukken_revised[i]
