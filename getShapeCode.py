@@ -18,7 +18,7 @@ def strip_ideographic(text):
 
 def get_all_word_bukken(filename="IDS-UCS-Basic.txt"):
     bukkens = []
-    words = []
+    words = []  # actually chars
     word_bukken = {}
     for i, line in enumerate(open(filename, "r").readlines()):
         if line[0] != "U":  # not start with U+XXXX means it is not a word
@@ -59,6 +59,17 @@ def get_all_word_bukken(filename="IDS-UCS-Basic.txt"):
         word_bukken[i_word] = b_list
     return words, bukkens, word_bukken
 
+
+def get_all_character(filename="IDS-UCS-Basic.txt"):
+    chars = []
+
+    for i, line in enumerate(open(filename, "r").readlines()):
+        if line[0] != "U":  # not start with U+XXXX means it is not a word
+            continue
+        line = line.split()
+        char = line[1]
+        chars.append(char)
+    return chars
 
 if __name__ == "__main__":
     # print(strip_ideographic('⿱⿰&CDP-895C;&CDP-895C;一'))
