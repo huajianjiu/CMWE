@@ -816,7 +816,6 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
 def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     juman = Jumanpp()
     janome_tokenizer = JanomeTokenizer()
-    janome = False
     full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
     data_limit_per_class = datasize//2
     data_size = data_limit_per_class*2
@@ -841,10 +840,12 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
 
     for i, text in enumerate(positive+negative):
         # 日语分词
+        janome = False
         try:
             parse_result = juman.analysis(text)
             parse_tokens = parse_result.mrph_list()
         except ValueError:
+            print(sys.exc_info())
             parse_tokens = janome_tokenizer.tokenize(text)
             janome = True
         except:
@@ -856,7 +857,6 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
             if janome:
                 word = mrph.surface
                 word_genkei = mrph.base_form
-                janome = False
             else:
                 word = mrph.midasi
                 word_genkei = mrph.genkei
