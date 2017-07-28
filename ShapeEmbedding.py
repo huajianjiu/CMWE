@@ -695,9 +695,14 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
     word_vocab = ["</s>"]
     gram_vocab = ["</s>"] + get_all_character()
 
+    num_words = 0
+    num_chars = 0
+    num_ideographs = 0
+
     for i, text in enumerate(texts):
         for j, word in enumerate(text):
             # word level
+            num_words += 1
             if word not in word_vocab:
                 word_vocab.append(word)
                 word_index = len(word_vocab) - 1
@@ -706,6 +711,7 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
             data_word[i, j] = word_index
             # single char gram level
             for l, char_g in enumerate(word):
+                num_chars += 1
                 if char_g not in gram_vocab:
                     gram_vocab.append(char_g)
                     char_g_index = len(gram_vocab) - 1
@@ -716,6 +722,8 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
                 if not skip_unk:
                     if char_g not in full_vocab:
                         full_vocab.append(char_g)
+                if real_vocab_number<char_g_index<preprocessed_char_number:
+                    num_ideographs += 1
             # char shape level
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                             chara_bukken_revised=chara_bukken_revised,
@@ -729,6 +737,9 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
             for k, comp in enumerate(char_index):
                 data_char[i, j, k] = comp
 
+    print("# words: ", num_words)
+    print("# chars: ", num_chars)
+    print("# ideographas: ", num_ideographs)
     # convert labels to one-hot vectors
     labels = to_categorical(numpy.asarray(labels))
     print('Label Shape:', labels.shape)
@@ -766,6 +777,9 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
         = prepare_ChnSenti_classification(filename=filename, dev_mode=dev_mode, skip_unk=skip_unk)
     word_vocab_size = len(word_vocab)
     char_vocab_size = len(char_vocab)
+
+    print("word vocab size", word_vocab_size)
+    print("char vocab size", char_vocab_size)
 
     num_class = 2
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
@@ -845,6 +859,10 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     word_vocab = ["</s>"]
     char_vocab = ["</s>"] + get_all_character()
 
+    num_words = 0
+    num_chars = 0
+    num_ideographs = 0
+
     for i, text in enumerate(positive+negative):
         # 日语分词
         janome = False
@@ -859,6 +877,7 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
             print("Unexpected error:", sys.exc_info()[0])
             raise
         for j, mrph in enumerate(parse_tokens):
+            num_words += 1
             if j + 1 > MAX_SENTENCE_LENGTH:
                 break
             if janome:
@@ -876,6 +895,7 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
             data_word[i, j] = word_index
             # single char gram level
             for l, char_g in enumerate(word):
+                num_chars += 1
                 if char_g not in char_vocab:
                     char_vocab.append(char_g)
                     char_g_index = len(char_vocab) - 1
@@ -886,6 +906,8 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
                 if not skip_unk:
                     if char_g not in full_vocab:
                         full_vocab.append(char_g)
+                if real_vocab_number < char_g_index < preprocessed_char_number:
+                    num_ideographs += 1
             # char shape level
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                             chara_bukken_revised=chara_bukken_revised,
@@ -899,6 +921,9 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
             for k, comp in enumerate(char_index):
                 data_shape[i, j, k] = comp
 
+    print("# words: ", num_words)
+    print("# chars: ", num_chars)
+    print("# ideographas: ", num_ideographs)
     # convert labels to one-hot vectors
     labels = to_categorical(numpy.asarray(labels))
     print('Label Shape:', labels.shape)
@@ -936,6 +961,9 @@ def do_rakuten_senti_classification(datasize, attention=False, cnn_encoder=True,
         = prepare_rakuten_senti_classification(datasize, skip_unk=skip_unk)
     word_vocab_size = len(word_vocab)
     char_vocab_size = len(char_vocab)
+
+    print("word vocab size", word_vocab_size)
+    print("char vocab size", char_vocab_size)
 
     num_class = 2
     sgd = optimizers.SGD(lr=0.01, momentum=0.9)
