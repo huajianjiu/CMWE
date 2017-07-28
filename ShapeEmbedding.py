@@ -19,7 +19,7 @@ COMP_WIDTH = 3
 CHAR_EMB_DIM = 15
 VALIDATION_SPLIT = 0.2
 BATCH_SIZE = 100
-WORD_DIM = 150
+WORD_DIM = 600
 
 
 def _make_kana_convertor():
@@ -82,7 +82,7 @@ def get_vocab(opts=None):
 
     hira_punc_number_latin = "".join(hirakana_list) + string.punctuation + \
                              'ヴゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇷ゚ㇺㇻㇼㇽㇾㇿ々〻' \
-                             '〟ゝゞ〈《〉》〝…‥〴' \
+                             '〟ゝゞ〈《〉》〝…‥･〴' \
                              '1234567890' \
                              'abcdefghijklmnopqrstuvwxyz ' \
                              '○●☆★■♪ヾω*≧∇≦※→←↑↓'
@@ -201,7 +201,6 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
         if mode == "average":
             # 2nd layer average the #comp_width components of every character
             char_embedding = AveragePooling1D(pool_size=comp_width, strides=comp_width, padding='valid')
-            # conv, filter width 1 2 3, feature maps 50 100 150
             feature1 = Conv1D(filters=50, kernel_size=1, activation='relu')(char_embedding)
             feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
             feature2 = Conv1D(filters=100, kernel_size=2, activation='relu')(char_embedding)
@@ -211,8 +210,16 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
             feature = concatenate([feature1, feature2, feature3])
         elif mode == "padding":
             # print(char_embedding._keras_shape)
-            # conv, filter with [1, 2, 3]*#comp_width, feature maps 50 100 150
             print(comp_width)
+            feature_s1 = Conv1D(filters=50, kernel_size=1, activation='relu')(
+                char_embedding)
+            feature_s1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH * COMP_WIDTH)(feature_s1)
+            feature_s2 = Conv1D(filters=100, kernel_size=2, activation='relu')(
+                char_embedding)
+            feature_s2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH * COMP_WIDTH - 1)(feature_s2)
+            feature_s3 = Conv1D(filters=150, kernel_size=3, activation='relu')(
+                char_embedding)
+            feature_s3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH * COMP_WIDTH -2)(feature_s3)
             feature1 = Conv1D(filters=50, kernel_size=1 * comp_width, strides=comp_width, activation='relu')(
                 char_embedding)
             feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
@@ -222,7 +229,7 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
             feature3 = Conv1D(filters=150, kernel_size=3 * comp_width, strides=comp_width, activation='relu')(
                 char_embedding)
             feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
-            feature = concatenate([feature1, feature2, feature3])
+            feature = concatenate([feature_s1, feature_s2, feature_s3, feature1, feature2, feature3])
         feature = Flatten()(feature)
         # print(feature._keras_shape)
         feature = Highway()(feature)
@@ -255,13 +262,13 @@ def build_word_feature_char(vocab_size=5, char_emb_dim=CHAR_EMB_DIM,
         if mode == "padding":
             # print(char_embedding._keras_shape)
             # conv, filter with [1, 2, 3]*#comp_width, feature maps 50 100 150
-            feature1 = Conv1D(filters=50, kernel_size=1, activation='relu')(
+            feature1 = Conv1D(filters=100, kernel_size=1, activation='relu')(
                 char_embedding)
             feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
-            feature2 = Conv1D(filters=100, kernel_size=2, activation='relu')(
+            feature2 = Conv1D(filters=200, kernel_size=2, activation='relu')(
                 char_embedding)
             feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-            feature3 = Conv1D(filters=150, kernel_size=3, activation='relu')(
+            feature3 = Conv1D(filters=300, kernel_size=3, activation='relu')(
                 char_embedding)
             feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
             feature = concatenate([feature1, feature2, feature3])
@@ -845,7 +852,7 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
             parse_result = juman.analysis(text)
             parse_tokens = parse_result.mrph_list()
         except ValueError:
-            print(sys.exc_info())
+            # print(sys.exc_info())
             parse_tokens = janome_tokenizer.tokenize(text)
             janome = True
         except:
@@ -1091,19 +1098,19 @@ if __name__ == "__main__":
     #                            word_only=True, skip_unk=True)
     # print("DATASET: CH4000", flush=True)
     # do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_4000/", char_shape_only=True, char_only=True, word_only=True)
-    # print("DATASET: CH6000", flush=True)
-    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", char_shape_only=True, char_only=True, word_only=True)
+    print("DATASET: CH6000", flush=True)
+    do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", char_shape_only=True, char_only=True, word_only=True)
     # print("DATASET: CH8000", flush=True)
     # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_8000/", char_shape_only=True, char_only=True,
     #                            word_only=True)
-    # print("DATASET: CH10000", flush=True)
-    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
-    #                            word_only=True)
-    print("DATASET: RAKUTEN(JP) 4000", flush=True)
-    do_rakuten_senti_classification(datasize=4000, char_shape_only=True, char_only=True, word_only=True)
+    print("DATASET: CH10000", flush=True)
+    do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
+                               word_only=True)
+    # print("DATASET: RAKUTEN(JP) 4000", flush=True)
+    # do_rakuten_senti_classification(datasize=4000, char_shape_only=True, char_only=True, word_only=True)
     print("DATASET: RAKUTEN(JP) 6000", flush=True)
     do_rakuten_senti_classification(datasize=6000, char_shape_only=True, char_only=True, word_only=True)
-    print("DATASET: RAKUTEN(JP) 8000", flush=True)
-    do_rakuten_senti_classification(datasize=8000, char_shape_only=True, char_only=True, word_only=True)
+    # print("DATASET: RAKUTEN(JP) 8000", flush=True)
+    # do_rakuten_senti_classification(datasize=8000, char_shape_only=True, char_only=True, word_only=True)
     print("DATASET: RAKUTEN(JP) 10000", flush=True)
     do_rakuten_senti_classification(datasize=10000, char_shape_only=True, char_only=True, word_only=True)
