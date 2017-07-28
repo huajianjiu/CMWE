@@ -107,12 +107,16 @@ def get_vocab(opts=None):
 
 
 def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sentence_text, addition_translate,
-                        mode="padding", comp_width=COMP_WIDTH, skip_unknown=False):
+                        mode="padding", comp_width=COMP_WIDTH, preprocessed_char_number=0,
+                        skip_unknown=False):
     # mode:
     # average: will repeat the original index to #comp_width for the process of the embedding layer
     # padding: will pad the original index to #comp_width with zero for the process of the embedding layer
     # char_emb_dim  char embedding size
     # comp_width  #components used
+
+    if preprocessed_char_number == 0:
+        preprocessed_char_number = len(full_vocab)
 
     # convert digital number and latin to hangaku
     text = mojimoji.zen_to_han(sentence_text, kana=False)
@@ -161,7 +165,7 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
                 else:
                     i = 1     # assign to unknown words
             # print(i)
-            if i > real_vocab_number:
+            if real_vocab_number < i < preprocessed_char_number:
                 comps = chara_bukken_revised[i]
                 # print(comps)
                 if len(comps) >= comp_width:
@@ -669,14 +673,15 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
     print('Found %s texts.' % len(texts))
 
     data_size = len(texts)
+    preprocessed_char_number = len(full_vocab)
 
     # global MAX_SENTENCE_LENGTH
     # MAX_SENTENCE_LENGTH = maxlen
 
     # change the sentence into matrix of word sequence
-    data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
+    data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32) # data_shape
     data_word = numpy.zeros((data_size, MAX_SENTENCE_LENGTH), dtype=numpy.int32)
-    data_gram = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype=numpy.int32)
+    data_gram = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype=numpy.int32) # data_char
     print("Data shape: {shape}".format(shape=str(data_char.shape)))
 
     word_vocab = ["</s>"]
@@ -707,7 +712,8 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                             chara_bukken_revised=chara_bukken_revised,
                                             addition_translate=addtional_translate,
-                                            sentence_text=word, skip_unknown=skip_unk)
+                                            sentence_text=word, preprocessed_char_number=preprocessed_char_number,
+                                            skip_unknown=skip_unk)
             if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
             elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
@@ -806,7 +812,7 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
     #            callbacks=[reducelr, stopper])
 
 
-def prepare_rakuten_senti_classification(datasize):
+def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     juman = Jumanpp()
     full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
     data_limit_per_class = datasize//2
@@ -818,6 +824,8 @@ def prepare_rakuten_senti_classification(datasize):
     positive = positive[:data_limit_per_class]
     negative = negative[:data_limit_per_class]
     labels = [1] * data_limit_per_class + [0] * data_limit_per_class
+
+    preprocessed_char_number = len(full_vocab)
 
     data_shape = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
     data_word = numpy.zeros((data_size, MAX_SENTENCE_LENGTH), dtype=numpy.int32)
@@ -852,17 +860,21 @@ def prepare_rakuten_senti_classification(datasize):
                     char_g_index = char_vocab.index(char_g)
                 if l<MAX_WORD_LENGTH:
                     data_char[i, j, l] = char_g_index
+                if not skip_unk:
+                    if char_g not in full_vocab:
+                        full_vocab.append(char_g)
             # char shape level
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                             chara_bukken_revised=chara_bukken_revised,
                                             addition_translate=addtional_translate,
-                                            sentence_text=word)
+                                            preprocessed_char_number=preprocessed_char_number,
+                                            sentence_text=word, skip_unknown=skip_unk)
             if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
             elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index[:COMP_WIDTH * MAX_WORD_LENGTH]
             for k, comp in enumerate(char_index):
-                data_char[i, j, k] = comp
+                data_shape[i, j, k] = comp
 
     # convert labels to one-hot vectors
     labels = to_categorical(numpy.asarray(labels))
@@ -871,17 +883,17 @@ def prepare_rakuten_senti_classification(datasize):
     # split data into training and validation
     indices = numpy.arange(data_char.shape[0])
     numpy.random.shuffle(indices)
-    data_char = data_char[indices]
+    data_shape = data_shape[indices]
     data_word = data_word[indices]
     data_char = data_char[indices]
     labels = labels[indices]
     nb_validation_samples = int(VALIDATION_SPLIT * data_char.shape[0])
 
-    x1_train = data_char[:-nb_validation_samples]
+    x1_train = data_shape[:-nb_validation_samples]
     x2_train = data_word[:-nb_validation_samples]
     x3_train = data_char[:-nb_validation_samples]
     y_train = labels[:-nb_validation_samples]
-    x1_val = data_char[-nb_validation_samples:]
+    x1_val = data_shape[-nb_validation_samples:]
     x2_val = data_word[-nb_validation_samples:]
     x3_val = data_char[-nb_validation_samples:]
     y_val = labels[-nb_validation_samples:]
@@ -895,10 +907,10 @@ def prepare_rakuten_senti_classification(datasize):
 
 
 def do_rakuten_senti_classification(datasize, attention=False, cnn_encoder=True,
-                               char_shape_only=True, char_only=True, word_only=True):
+                               char_shape_only=True, char_only=True, word_only=True, skip_unk=False):
     (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
      x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val) \
-        = prepare_rakuten_senti_classification(datasize)
+        = prepare_rakuten_senti_classification(datasize, skip_unk=skip_unk)
     word_vocab_size = len(word_vocab)
     char_vocab_size = len(char_vocab)
 
@@ -1052,25 +1064,25 @@ if __name__ == "__main__":
     # print("use cnn encoder")
     # do_aozora_classification(cnn_encoder=True)
     # test_classifier()
-    print("DATASET: CH6000 SKIPUNK", flush=True)
-    do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", char_shape_only=True, char_only=True,
-                               word_only=True, skip_unk=True)
-    print("DATASET: CH8000 SKIPUNK", flush=True)
-    do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_8000/", char_shape_only=True, char_only=True,
-                               word_only=True, skip_unk=True)
-    print("DATASET: CH10000 SKIPUNK", flush=True)
-    do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
-                               word_only=True, skip_unk=True)
-    print("DATASET: CH4000", flush=True)
-    do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_4000/", char_shape_only=True, char_only=True, word_only=True)
-    print("DATASET: CH6000", flush=True)
-    do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", char_shape_only=True, char_only=True, word_only=True)
-    print("DATASET: CH8000", flush=True)
-    do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_8000/", char_shape_only=True, char_only=True,
-                               word_only=True)
-    print("DATASET: CH10000", flush=True)
-    do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
-                               word_only=True)
+    # print("DATASET: CH6000 SKIPUNK", flush=True)
+    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", char_shape_only=True, char_only=True,
+    #                            word_only=True, skip_unk=True)
+    # print("DATASET: CH8000 SKIPUNK", flush=True)
+    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_8000/", char_shape_only=True, char_only=True,
+    #                            word_only=True, skip_unk=True)
+    # print("DATASET: CH10000 SKIPUNK", flush=True)
+    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
+    #                            word_only=True, skip_unk=True)
+    # print("DATASET: CH4000", flush=True)
+    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_4000/", char_shape_only=True, char_only=True, word_only=True)
+    # print("DATASET: CH6000", flush=True)
+    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", char_shape_only=True, char_only=True, word_only=True)
+    # print("DATASET: CH8000", flush=True)
+    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_8000/", char_shape_only=True, char_only=True,
+    #                            word_only=True)
+    # print("DATASET: CH10000", flush=True)
+    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
+    #                            word_only=True)
     print("DATASET: RAKUTEN(JP) 4000", flush=True)
     do_rakuten_senti_classification(datasize=4000, char_shape_only=True, char_only=True, word_only=True)
     print("DATASET: RAKUTEN(JP) 6000", flush=True)
