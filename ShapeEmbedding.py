@@ -108,8 +108,8 @@ def get_vocab(opts=None):
 
 
 def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sentence_text, addition_translate,
-                        mode="padding", comp_width=COMP_WIDTH, preprocessed_char_number=0,
-                        skip_unknown=False):
+                       mode="padding", comp_width=COMP_WIDTH, preprocessed_char_number=0,
+                       skip_unknown=False):
     # mode:
     # average: will repeat the original index to #comp_width for the process of the embedding layer
     # padding: will pad the original index to #comp_width with zero for the process of the embedding layer
@@ -143,7 +143,7 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
                 if skip_unknown:
                     continue  # skip unknown words
                 else:
-                    i = 1     # assign to unknown words
+                    i = 1  # assign to unknown words
             if i > real_vocab_number:
                 comps = chara_bukken_revised[i]
                 if len(comps) >= comp_width:
@@ -164,7 +164,7 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
                 if skip_unknown:
                     continue  # skip unknown words
                 else:
-                    i = 1     # assign to unknown words
+                    i = 1  # assign to unknown words
             # print(i)
             if real_vocab_number < i < preprocessed_char_number:
                 comps = chara_bukken_revised[i]
@@ -179,7 +179,8 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
 
 
 def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_WIDTH,
-                       mode="padding", cnn_encoder=True):
+                             mode="padding", cnn_encoder=True,
+                             highway=True, shape_filter=True, char_filter=True):
     # build the feature computed by cnn for each word in the sentence. used to input to the next rnn.
     # expected input: every #comp_width int express a character.
     # mode:
@@ -187,6 +188,7 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
     # "padding": convoluate every #comp_width embedding
 
     # real vocab_size for ucs is 2481, including paddingblank, unkown, puncutations, kanas
+    assert shape_filter or char_filter
     init_width = 0.5 / char_emb_dim
     init_weight = numpy.random.uniform(low=-init_width, high=init_width, size=(vocab_size, char_emb_dim))
     init_weight[0] = 0  # maybe the padding should not be zero
@@ -198,41 +200,45 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
         Embedding(input_dim=vocab_size, output_dim=char_emb_dim, weights=[init_weight], trainable=True)(word_input)
     # print("char_embedding:", char_embedding._keras_shape)
     if cnn_encoder:
-        if mode == "average":
-            # 2nd layer average the #comp_width components of every character
-            char_embedding = AveragePooling1D(pool_size=comp_width, strides=comp_width, padding='valid')
-            feature1 = Conv1D(filters=50, kernel_size=1, activation='relu')(char_embedding)
-            feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
-            feature2 = Conv1D(filters=100, kernel_size=2, activation='relu')(char_embedding)
-            feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-            feature3 = Conv1D(filters=150, kernel_size=3, activation='relu')(char_embedding)
-            feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
-            feature = concatenate([feature1, feature2, feature3])
-        elif mode == "padding":
+        if mode == "padding":
             # print(char_embedding._keras_shape)
-            print(comp_width)
-            feature_s1 = Conv1D(filters=50, kernel_size=1, activation='relu')(
-                char_embedding)
-            feature_s1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH * COMP_WIDTH)(feature_s1)
-            feature_s2 = Conv1D(filters=100, kernel_size=2, activation='relu')(
-                char_embedding)
-            feature_s2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH * COMP_WIDTH - 1)(feature_s2)
-            feature_s3 = Conv1D(filters=150, kernel_size=3, activation='relu')(
-                char_embedding)
-            feature_s3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH * COMP_WIDTH -2)(feature_s3)
-            feature1 = Conv1D(filters=50, kernel_size=1 * comp_width, strides=comp_width, activation='relu')(
-                char_embedding)
-            feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
-            feature2 = Conv1D(filters=100, kernel_size=2 * comp_width, strides=comp_width, activation='relu')(
-                char_embedding)
-            feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
-            feature3 = Conv1D(filters=150, kernel_size=3 * comp_width, strides=comp_width, activation='relu')(
-                char_embedding)
-            feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
-            feature = concatenate([feature_s1, feature_s2, feature_s3, feature1, feature2, feature3])
+            # print(comp_width)
+            if shape_filter and char_filter:
+                filter_sizes = [50, 100, 150]
+            else:
+                filter_sizes = [100, 200, 300]
+            if shape_filter:
+                feature_s1 = Conv1D(filters=filter_sizes[0], kernel_size=1, activation='relu')(
+                    char_embedding)
+                feature_s1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH * COMP_WIDTH)(feature_s1)
+                feature_s2 = Conv1D(filters=filter_sizes[1], kernel_size=2, activation='relu')(
+                    char_embedding)
+                feature_s2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH * COMP_WIDTH - 1)(feature_s2)
+                feature_s3 = Conv1D(filters=filter_sizes[2], kernel_size=3, activation='relu')(
+                    char_embedding)
+                feature_s3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH * COMP_WIDTH - 2)(feature_s3)
+            if char_filter:
+                feature1 = Conv1D(filters=filter_sizes[0], kernel_size=1 * comp_width, strides=comp_width, activation='relu')(
+                    char_embedding)
+                feature1 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 1 + 1)(feature1)
+                feature2 = Conv1D(filters=filter_sizes[1], kernel_size=2 * comp_width, strides=comp_width, activation='relu')(
+                    char_embedding)
+                feature2 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 2 + 1)(feature2)
+                feature3 = Conv1D(filters=filter_sizes[2], kernel_size=3 * comp_width, strides=comp_width, activation='relu')(
+                    char_embedding)
+                feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
+            if shape_filter and char_filter:
+                feature = concatenate([feature_s1, feature_s2, feature_s3, feature1, feature2, feature3])
+            elif shape_filter and not char_filter:
+                feature = concatenate([feature_s1, feature_s2, feature_s3])
+            elif char_filter and not shape_filter:
+                feature = concatenate([feature1, feature2, feature3])
+            else:
+                feature = None
         feature = Flatten()(feature)
         # print(feature._keras_shape)
-        feature = Highway()(feature)
+        if highway:
+            feature = Highway()(feature)
     else:
         feature = Flatten()(char_embedding)
     word_feature_encoder = Model(word_input, feature)
@@ -240,7 +246,7 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
 
 
 def build_word_feature_char(vocab_size=5, char_emb_dim=CHAR_EMB_DIM,
-                       mode="padding", cnn_encoder=True):
+                            mode="padding", cnn_encoder=True, highway=True):
     # build the feature computed by cnn for each word in the sentence. used to input to the next rnn.
     # expected input: every #comp_width int express a character.
     # mode:
@@ -274,7 +280,8 @@ def build_word_feature_char(vocab_size=5, char_emb_dim=CHAR_EMB_DIM,
             feature = concatenate([feature1, feature2, feature3])
         feature = Flatten()(feature)
         # print(feature._keras_shape)
-        feature = Highway()(feature)
+        if highway:
+            feature = Highway()(feature)
     else:
         feature = Flatten()(char_embedding)
     word_feature_encoder = Model(word_input, feature)
@@ -283,11 +290,15 @@ def build_word_feature_char(vocab_size=5, char_emb_dim=CHAR_EMB_DIM,
 
 def build_sentence_rnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10,
                        classes=2, attention=False, dropout=0,
-                       word=True, char=False, char_shape=True, model="rnn", cnn_encoder=True):
+                       word=True, char=False, char_shape=True, model="rnn", cnn_encoder=True,
+                       highway=True, shape_filter=True, char_filter=True):
     print(MAX_SENTENCE_LENGTH)
     # build the rnn of words, use the output of build_word_feature as the feature of each word
     if char_shape:
-        word_feature_encoder = build_word_feature_shape(vocab_size=real_vocab_number, cnn_encoder=cnn_encoder)
+        word_feature_encoder = build_word_feature_shape(vocab_size=real_vocab_number,
+                                                        cnn_encoder=cnn_encoder,
+                                                        highway=highway, shape_filter=shape_filter,
+                                                        char_filter=char_filter)
         sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype='int32')
         word_feature_sequence = TimeDistributed(word_feature_encoder)(sentence_input)
         # print(word_feature_sequence._keras_shape)
@@ -295,7 +306,8 @@ def build_sentence_rnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10
         sentence_word_input = Input(shape=(MAX_SENTENCE_LENGTH,), dtype='int32')
         word_embedding_sequence = Embedding(input_dim=word_vocab_size, output_dim=WORD_DIM)(sentence_word_input)
     if char:
-        word_feature_encoder = build_word_feature_char(vocab_size=char_vocab_size, cnn_encoder=cnn_encoder)
+        word_feature_encoder = build_word_feature_char(vocab_size=char_vocab_size,
+                                                       cnn_encoder=cnn_encoder, highway=highway)
         char_input = Input(shape=(MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype='int32')
         word_feature_sequence = TimeDistributed(word_feature_encoder)(char_input)
     if char_shape and word and not char:
@@ -328,320 +340,6 @@ def build_sentence_rnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10
         sentence_model = Model(char_input, preds)
     sentence_model.summary()
     return sentence_model
-
-
-def prepare_kyoto_classification(dev_mode=False, juman=True):
-    # expected input. a sequence of the forward output of build_word_feature
-
-    # get vocab
-    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate,_ = get_vocab()
-
-    # if isinstance(sentence_input_text, str):
-    #     sentence_input_text = sentence_input_text.split()
-    # sentence_input_int = [text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-    #                                         chara_bukken_revised=chara_bukken_revised,
-    #                                         sentence_text=x) for x in sentence_input_text]
-    # preprocess data
-
-    # read xlsx
-    data_f = pandas.ExcelFile('/home/yuanzhike/CMWE/kt_blog_data/EvaluativeInformationCorpus/EvalAnnotation-A.xlsx')
-    sen_sheet = data_f.parse('Sheet1')
-    rows, columns = sen_sheet.shape
-    print("Totally {n} sentences in the dataset".format(n=rows))
-    if dev_mode:
-        max_rows = 5
-    else:
-        max_rows = rows
-    sentence_texts = []
-    labels_ng = []
-    labels_14 = []
-    label_14_names = ['メリット－', 'メリット＋', '感情－', '感情＋',
-                      '採否－', '採否＋', '出来事－', '出来事＋',
-                      '当為－', '当為＋', '批評－', '批評＋',
-                      '要望－', '要望＋']
-    for i in range(max_rows):
-        sentence_texts.append(sen_sheet.iloc[i][2])
-        if sen_sheet.iloc[i][3] == '+':
-            labels_ng.append(1)
-        else:
-            labels_ng.append(0)
-        labels_14.append(label_14_names.index(sen_sheet.iloc[i][5]))
-
-    # change the sentence into matrix of word sequence
-    data = numpy.zeros((max_rows, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
-    data_word = numpy.zeros((max_rows, MAX_SENTENCE_LENGTH), dtype=numpy.int32)
-    print("Data shape: {shape}".format(shape=str(data.shape)))
-
-    word_vocab = ["</s>"]
-
-    if juman:
-        juman = Jumanpp()
-        for i, text in enumerate(sentence_texts):
-            # print(text)
-            parse_result = juman.analysis(text)
-            for j, mrph in enumerate(parse_result.mrph_list()):
-                if j + 1 > MAX_SENTENCE_LENGTH:
-                    break
-                word = mrph.genkei
-                word_index = 0
-                if word not in word_vocab:
-                    word_vocab.append(word)
-                    word_index = len(word_vocab) - 1
-                else:
-                    word_index = word_vocab.index(word)
-                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                                chara_bukken_revised=chara_bukken_revised, sentence_text=word,
-                                                addition_translate=addtional_translate)
-                if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
-                    char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
-                elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
-                    char_index = char_index[:COMP_WIDTH * MAX_WORD_LENGTH]
-                for k, comp in enumerate(char_index):
-                    data[i, j, k] = comp
-                data_word[i, j] = word_index
-    else:
-        # do not use juman but use n-gram. not completed yet
-        char_int_sequence = [text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                                chara_bukken_revised=chara_bukken_revised, sentence_text=text)
-                             for text in sentence_texts]
-        padded_char_sequence = pad_sequences(char_int_sequence, maxlen=MAX_WORD_LENGTH, )
-        print("the n-gram module that not compeleted")
-        exit(1)
-
-    # convert labels to one-hot vectors
-    labels_ng_c = to_categorical(numpy.asarray(labels_ng))
-    labels_14_c = to_categorical(numpy.asarray(labels_14))
-    print('Poly Label Shape:', labels_ng_c.shape)
-    print('Fine-grained Label Shape:', labels_14_c.shape)
-
-    # split data into training and validation
-    indices = numpy.arange(data.shape[0])
-    numpy.random.shuffle(indices)
-    data = data[indices]
-    data_word = data_word[indices]
-    labels_ng_c = labels_ng_c[indices]
-    labels_14_c = labels_14_c[indices]
-    nb_validation_samples = int(VALIDATION_SPLIT * data.shape[0])
-
-    x1_train = data[:-nb_validation_samples]
-    x2_train = data_word[:-nb_validation_samples]
-    y1_train = labels_ng_c[:-nb_validation_samples]
-    y2_train = labels_14_c[:-nb_validation_samples]
-    x1_val = data[-nb_validation_samples:]
-    x2_val = data_word[-nb_validation_samples:]
-    y1_val = labels_ng_c[-nb_validation_samples:]
-    y2_val = labels_14_c[-nb_validation_samples:]
-
-    print('Number of different reviews for training and test')
-    print(y1_train.sum(axis=0))
-    print(y1_val.sum(axis=0))
-    print(y2_train.sum(axis=0))
-    print(y2_val.sum(axis=0))
-
-    return full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, \
-           x1_train, x2_train, y1_train, y2_train, x1_val, x2_val, y1_val, y2_val
-
-
-def do_kyoto_classification_task(dev_mode=False, juman=True, attention=False, char_emb_dim=CHAR_EMB_DIM, task="kyoto"):
-    full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, \
-    x1_train, x2_train, y1_train, y2_train, x1_val, x2_val, y1_val, y2_val = \
-        prepare_kyoto_classification(dev_mode=dev_mode, juman=juman)
-
-    word_vocab_size = len(word_vocab)
-
-    print("Do task: ", task)
-
-    print("Char Only-2 classes")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
-    stopper = EarlyStopping(monitor='val_loss', patience=50)
-    model1 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2, attention=attention, word=False)
-    model1.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'])
-    model1.fit(x1_train, y1_train, validation_data=(x1_val, y1_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
-
-    print("Char Only-14 classes")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=14, attention=attention, word=False)
-    model2.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'])
-    model2.fit(x1_train, y2_train, validation_data=(x1_val, y2_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
-
-    print("Word Only-2 classes")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    model3 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                classes=2, attention=attention, char_shape=False)
-    model3.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'])
-    model3.fit(x2_train, y1_train, validation_data=(x2_val, y1_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
-
-    print("Word Only-14 classes")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    model4 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                classes=14, attention=attention, char_shape=False)
-    model4.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'])
-    model4.fit(x2_train, y2_train, validation_data=(x2_val, y2_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
-
-    print("Word+Char-2 classes")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    model5 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                classes=2, attention=attention, word=True, char_shape=True)
-    model5.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'])
-    model5.fit([x1_train, x2_train], y1_train, validation_data=([x1_val, x2_val], y1_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
-
-    print("Word+Char-14 classes")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    model6 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                classes=14, attention=attention, word=True, char_shape=True)
-    model6.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'])
-    model6.fit([x1_train, x2_train], y2_train, validation_data=([x1_val, x2_val], y2_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
-
-
-def prepare_aozora_classification(dev_mode=False):
-    # get vocab
-    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
-
-    # if isinstance(sentence_input_text, str):
-    #     sentence_input_text = sentence_input_text.split()
-    # sentence_input_int = [text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-    #                                         chara_bukken_revised=chara_bukken_revised,
-    #                                         sentence_text=x) for x in sentence_input_text]
-    # preprocess data
-
-    # read data. Shape: {"NDC 3,4,7": 1000 word sequence * 5000, "NDC 9": ...}
-    data = pickle.load((open("aozora/aozora_big_5000_2lei.pickle", "rb")))
-
-    label_names = list(data.keys())
-
-    data_size = len(data[label_names[0]]) * len(label_names)
-
-    # change the sentence into matrix of word sequence
-    data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
-    data_word = numpy.zeros((data_size, MAX_SENTENCE_LENGTH), dtype=numpy.int32)
-    print("Data shape: {shape}".format(shape=str(data_char.shape)))
-
-    word_vocab = ["</s>"]
-    labels = []
-
-    for label, sentences in data.items():
-        for i, sentence in enumerate(sentences):
-            for j, word in enumerate(sentence):
-                if word not in word_vocab:
-                    word_vocab.append(word)
-                    word_index = len(word_vocab) - 1
-                else:
-                    word_index = word_vocab.index(word)
-                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                                chara_bukken_revised=chara_bukken_revised,
-                                                addition_translate=addtional_translate, sentence_text=word)
-                if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
-                    char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
-                elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
-                    char_index = char_index[:COMP_WIDTH * MAX_WORD_LENGTH]
-                for k, comp in enumerate(char_index):
-                    data_char[i, j, k] = comp
-                data_word[i, j] = word_index
-            labels.append(label_names.index(label))
-
-    # convert labels to one-hot vectors
-    labels = to_categorical(numpy.asarray(labels))
-    print('Label Shape:', labels.shape)
-
-    # split data into training and validation
-    indices = numpy.arange(data_char.shape[0])
-    numpy.random.shuffle(indices)
-    data_char = data_char[indices]
-    data_word = data_word[indices]
-    labels = labels[indices]
-    nb_validation_samples = int(VALIDATION_SPLIT * data_char.shape[0])
-
-    x1_train = data_char[:-nb_validation_samples]
-    x2_train = data_word[:-nb_validation_samples]
-    y_train = labels[:-nb_validation_samples]
-    x1_val = data_char[-nb_validation_samples:]
-    x2_val = data_word[-nb_validation_samples:]
-    y_val = labels[-nb_validation_samples:]
-
-    print('Number of different reviews for training and test')
-    print(y_train.sum(axis=0))
-    print(y_val.sum(axis=0))
-
-    with open("aozora_big_2_data.pickle", "wb") as f:
-        pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, word_vocab,
-                     x1_train, x2_train, y_train, x1_val, x2_val, y_val), f)
-
-    return full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, \
-           x1_train, x2_train, y_train, x1_val, x2_val, y_val
-
-
-def do_aozora_classification(dev_mode=False, attention=False, cnn_encoder=True):
-    global MAX_SENTENCE_LENGTH
-    MAX_SENTENCE_LENGTH = 1000
-
-    with open("aozora_big_2_data.pickle", "rb") as f:
-        (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab,
-         x1_train, x2_train, y_train, x1_val, x2_val, y_val) = pickle.load(f)
-    word_vocab_size = len(word_vocab)
-
-    num_class = 2
-
-    print("Char Only")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
-    stopper = EarlyStopping(monitor='val_loss', patience=50)
-    model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                attention=attention, word=False, cnn_encoder=cnn_encoder)
-    model2.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'], )
-    model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
-
-    print("Word Only")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    model4 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                classes=num_class, attention=attention, char_shape=False,
-                                cnn_encoder=cnn_encoder)
-    model4.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'])
-    model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
-
-    print("Word+Char-14 classes")
-    sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    model6 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                classes=num_class, attention=attention, word=True, char_shape=True,
-                                cnn_encoder=cnn_encoder)
-    model6.compile(loss='categorical_crossentropy',
-                   optimizer=sgd,
-                   metrics=['acc'])
-    model6.fit([x1_train, x2_train], y_train, validation_data=([x1_val, x2_val], y_val),
-               epochs=500, batch_size=BATCH_SIZE,
-               callbacks=[reducelr, stopper])
 
 
 def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mode=False, skip_unk=False):
@@ -687,9 +385,10 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
     # MAX_SENTENCE_LENGTH = maxlen
 
     # change the sentence into matrix of word sequence
-    data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32) # data_shape
+    data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH),
+                            dtype=numpy.int32)  # data_shape
     data_word = numpy.zeros((data_size, MAX_SENTENCE_LENGTH), dtype=numpy.int32)
-    data_gram = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype=numpy.int32) # data_char
+    data_gram = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype=numpy.int32)  # data_char
     print("Data shape: {shape}".format(shape=str(data_char.shape)))
 
     word_vocab = ["</s>"]
@@ -717,12 +416,12 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
                     char_g_index = len(gram_vocab) - 1
                 else:
                     char_g_index = gram_vocab.index(char_g)
-                if l<MAX_WORD_LENGTH:
+                if l < MAX_WORD_LENGTH:
                     data_gram[i, j, l] = char_g_index
                 if not skip_unk:
                     if char_g not in full_vocab:
                         full_vocab.append(char_g)
-                if real_vocab_number<char_g_index<preprocessed_char_number:
+                if real_vocab_number < char_g_index < preprocessed_char_number:
                     num_ideographs += 1
             # char shape level
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
@@ -771,7 +470,8 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
 
 
 def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_encoder=True,
-                               char_shape_only=True, char_only=True, word_only=True, skip_unk=False):
+                               char_shape_only=True, char_only=True, word_only=True, skip_unk=False,
+                               highway=True, shape_filter=True, char_filter=True):
     (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
      x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val) \
         = prepare_ChnSenti_classification(filename=filename, dev_mode=dev_mode, skip_unk=skip_unk)
@@ -789,7 +489,9 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
     if char_shape_only:
         print("Char Shape Only")
         model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                    attention=attention, word=False, char=False, cnn_encoder=cnn_encoder)
+                                    attention=attention, word=False, char=False,
+                                    cnn_encoder=cnn_encoder, highway=highway,
+                                    shape_filter=shape_filter, char_filter=char_filter)
         model2.compile(loss='categorical_crossentropy',
                        optimizer='rmsprop',
                        metrics=['acc'], )
@@ -801,7 +503,9 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
         print("Char Only")
         model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
                                     classes=num_class,
-                                    attention=attention, word=False, char=True, char_shape=False, cnn_encoder=cnn_encoder)
+                                    attention=attention, word=False, char=True, char_shape=False,
+                                    cnn_encoder=cnn_encoder, highway=highway,
+                                    shape_filter=shape_filter, char_filter=char_filter)
         model2.compile(loss='categorical_crossentropy',
                        optimizer='rmsprop',
                        metrics=['acc'], )
@@ -821,25 +525,25 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
                    epochs=100, batch_size=BATCH_SIZE,
                    callbacks=[reducelr, stopper])
 
-    # print("Word+Char")
-    # sgd = optimizers.SGD(lr=0.01, momentum=0.9)
-    # model6 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-    #                             classes=num_class, attention=attention, word=True, char_shape=True,
-    #                             cnn_encoder=cnn_encoder)
-    # model6.compile(loss='categorical_crossentropy',
-    #                optimizer=sgd,
-    #                metrics=['acc'])
-    # model6.fit([x1_train, x2_train], y_train, validation_data=([x1_val, x2_val], y_val),
-    #            epochs=500, batch_size=BATCH_SIZE,
-    #            callbacks=[reducelr, stopper])
+        # print("Word+Char")
+        # sgd = optimizers.SGD(lr=0.01, momentum=0.9)
+        # model6 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
+        #                             classes=num_class, attention=attention, word=True, char_shape=True,
+        #                             cnn_encoder=cnn_encoder)
+        # model6.compile(loss='categorical_crossentropy',
+        #                optimizer=sgd,
+        #                metrics=['acc'])
+        # model6.fit([x1_train, x2_train], y_train, validation_data=([x1_val, x2_val], y_val),
+        #            epochs=500, batch_size=BATCH_SIZE,
+        #            callbacks=[reducelr, stopper])
 
 
 def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     juman = Jumanpp()
     janome_tokenizer = JanomeTokenizer()
     full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
-    data_limit_per_class = datasize//2
-    data_size = data_limit_per_class*2
+    data_limit_per_class = datasize // 2
+    data_size = data_limit_per_class * 2
     with open("rakuten/rakuten_review.pickle", "rb") as f:
         positive, negative = pickle.load(f)
     random.shuffle(positive)
@@ -863,7 +567,7 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     num_chars = 0
     num_ideographs = 0
 
-    for i, text in enumerate(positive+negative):
+    for i, text in enumerate(positive + negative):
         # 日语分词
         janome = False
         try:
@@ -901,7 +605,7 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
                     char_g_index = len(char_vocab) - 1
                 else:
                     char_g_index = char_vocab.index(char_g)
-                if l<MAX_WORD_LENGTH:
+                if l < MAX_WORD_LENGTH:
                     data_char[i, j, l] = char_g_index
                 if not skip_unk:
                     if char_g not in full_vocab:
@@ -955,7 +659,8 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
 
 
 def do_rakuten_senti_classification(datasize, attention=False, cnn_encoder=True,
-                               char_shape_only=True, char_only=True, word_only=True, skip_unk=False):
+                                    char_shape_only=True, char_only=True, word_only=True,
+                                    skip_unk=False, highway=True, shape_filter=True, char_filter=True):
     (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
      x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val) \
         = prepare_rakuten_senti_classification(datasize, skip_unk=skip_unk)
@@ -973,7 +678,9 @@ def do_rakuten_senti_classification(datasize, attention=False, cnn_encoder=True,
     if char_shape_only:
         print("Char Shape Only")
         model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                    attention=attention, word=False, char=False, cnn_encoder=cnn_encoder)
+                                    attention=attention, word=False, char=False,
+                                    cnn_encoder=cnn_encoder, highway=highway,
+                                    shape_filter=shape_filter, char_filter=char_filter)
         model2.compile(loss='categorical_crossentropy',
                        optimizer='rmsprop',
                        metrics=['acc'], )
@@ -985,7 +692,9 @@ def do_rakuten_senti_classification(datasize, attention=False, cnn_encoder=True,
         print("Char Only")
         model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
                                     classes=num_class,
-                                    attention=attention, word=False, char=True, char_shape=False, cnn_encoder=cnn_encoder)
+                                    attention=attention, word=False, char=True, char_shape=False,
+                                    cnn_encoder=cnn_encoder, highway=highway,
+                                    shape_filter=shape_filter, char_filter=char_filter)
         model2.compile(loss='categorical_crossentropy',
                        optimizer='rmsprop',
                        metrics=['acc'], )
@@ -1004,6 +713,7 @@ def do_rakuten_senti_classification(datasize, attention=False, cnn_encoder=True,
         model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
                    epochs=100, batch_size=BATCH_SIZE,
                    callbacks=[reducelr, stopper])
+
 
 def test_classifier(attention=False, cnn_encoder=True):
     x1_train_0 = numpy.random.normal(loc=4.0, scale=2.0, size=(500, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
@@ -1106,39 +816,31 @@ if __name__ == "__main__":
     #                 print(full_vocab[token], end="")
     #     print("\n", end="")
     # print("no attention")
-    # kyoto_classification()
-    # print("attention")
-    # do_kyoto_classification_task(attention=False, task="kyoto")
-    # prepare_aozora_classification()
-    # print("no cnn encoder")
-    # do_aozora_classification(cnn_encoder=False)
-    # print("use cnn encoder")
-    # do_aozora_classification(cnn_encoder=True)
+
     # test_classifier()
-    # print("DATASET: CH6000 SKIPUNK", flush=True)
-    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", char_shape_only=True, char_only=True,
-    #                            word_only=True, skip_unk=True)
-    # print("DATASET: CH8000 SKIPUNK", flush=True)
-    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_8000/", char_shape_only=True, char_only=True,
-    #                            word_only=True, skip_unk=True)
-    # print("DATASET: CH10000 SKIPUNK", flush=True)
-    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
-    #                            word_only=True, skip_unk=True)
+
+    print("no highway")
+    print("DATASET: CH10000", flush=True)
+    do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
+                               word_only=True, highway=False)
+    print("DATASET: RAKUTEN(JP) 10000", flush=True)
+    do_rakuten_senti_classification(datasize=10000, char_shape_only=True, char_only=True, word_only=True,
+                                    highway=False)
+
+    print("only shape level filters")
     # print("DATASET: CH4000", flush=True)
     # do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_4000/", char_shape_only=True, char_only=True, word_only=True)
     print("DATASET: CH6000", flush=True)
-    do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", char_shape_only=True, char_only=True, word_only=True)
-    # print("DATASET: CH8000", flush=True)
-    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_8000/", char_shape_only=True, char_only=True,
-    #                            word_only=True)
+    do_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", char_shape_only=True, char_only=True,
+                               word_only=True, char_filter=False)
     print("DATASET: CH10000", flush=True)
     do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", char_shape_only=True, char_only=True,
-                               word_only=True)
+                               word_only=True, char_filter=False)
     # print("DATASET: RAKUTEN(JP) 4000", flush=True)
     # do_rakuten_senti_classification(datasize=4000, char_shape_only=True, char_only=True, word_only=True)
     print("DATASET: RAKUTEN(JP) 6000", flush=True)
-    do_rakuten_senti_classification(datasize=6000, char_shape_only=True, char_only=True, word_only=True)
-    # print("DATASET: RAKUTEN(JP) 8000", flush=True)
-    # do_rakuten_senti_classification(datasize=8000, char_shape_only=True, char_only=True, word_only=True)
+    do_rakuten_senti_classification(datasize=6000, char_shape_only=True, char_only=True, word_only=True,
+                                    char_filter=False)
     print("DATASET: RAKUTEN(JP) 10000", flush=True)
-    do_rakuten_senti_classification(datasize=10000, char_shape_only=True, char_only=True, word_only=True)
+    do_rakuten_senti_classification(datasize=10000, char_shape_only=True, char_only=True, word_only=True,
+                                    char_filter=False)
