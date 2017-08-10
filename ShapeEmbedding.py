@@ -18,7 +18,8 @@ MAX_SENTENCE_LENGTH = 500
 MAX_WORD_LENGTH = 4
 COMP_WIDTH = 3
 CHAR_EMB_DIM = 15
-VALIDATION_SPLIT = 0.2
+VALIDATION_SPLIT = 0.1
+TEST_SPLIT = 0.1
 BATCH_SIZE = 100
 WORD_DIM = 600
 MAX_RUN = 1
@@ -391,6 +392,35 @@ def build_fasttext(word_vocab_size, classes):
     return model
 
 
+def split_data(data_shape, data_char, data_word, labels):
+    # split data into training and validation
+    indices = numpy.arange(data_char.shape[0])
+    numpy.random.shuffle(indices)
+    data_shape = data_shape[indices]
+    data_word = data_word[indices]
+    data_char = data_char[indices]
+    labels = labels[indices]
+    # 80% to train, 10% to validation, 10% to test
+    nb_validation_test_samples = int((VALIDATION_SPLIT+TEST_SPLIT)* data_char.shape[0])
+    nb_test_samples = int((TEST_SPLIT)* data_char.shape[0])
+
+    x1_train = data_shape[:-nb_validation_test_samples]
+    x2_train = data_word[:-nb_validation_test_samples]
+    x3_train = data_char[:-nb_validation_test_samples]
+    y_train = labels[:-nb_validation_test_samples]
+    x1_val = data_shape[-nb_validation_test_samples:-nb_test_samples]
+    x2_val = data_word[-nb_validation_test_samples:-nb_test_samples]
+    x3_val = data_char[-nb_validation_test_samples:-nb_test_samples]
+    y_val = labels[-nb_validation_test_samples:-nb_test_samples]
+    x1_test = data_shape[-nb_test_samples:]
+    x2_test = data_word[-nb_test_samples:]
+    x3_test = data_char[-nb_test_samples:]
+    y_test = labels[-nb_test_samples:]
+
+    return x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val, \
+           x1_test, x2_test, x3_test, y_test
+
+
 def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mode=False, skip_unk=False):
     # get vocab
     full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
@@ -492,32 +522,9 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
     labels = to_categorical(numpy.asarray(labels))
     print('Label Shape:', labels.shape)
 
-    # split data into training and validation
-    indices = numpy.arange(data_char.shape[0])
-    numpy.random.shuffle(indices)
-    data_shape = data_char[indices]
-    data_word = data_word[indices]
-    data_char = data_gram[indices]
-    labels = labels[indices]
-    # 80% to train, 10% to validation, 10% to test
-    nb_validation_test_samples = int(VALIDATION_SPLIT * data_char.shape[0])
-    nb_test_samples = int(nb_validation_test_samples/2)
-    nb_validation_samples = nb_validation_test_samples - nb_test_samples
-
-    x1_train = data_shape[:-nb_validation_test_samples]
-    x2_train = data_word[:-nb_validation_test_samples]
-    x3_train = data_char[:-nb_validation_test_samples]
-    y_train = labels[:-nb_validation_test_samples]
-    x1_val = data_shape[-nb_validation_test_samples:-nb_test_samples]
-    x2_val = data_word[-nb_validation_test_samples:-nb_test_samples]
-    x3_val = data_char[-nb_validation_test_samples:-nb_test_samples]
-    y_val = labels[-nb_validation_test_samples:-nb_test_samples]
-    x1_test = data_shape[-nb_test_samples:]
-    x2_test = data_word[-nb_test_samples:]
-    x3_test = data_char[-nb_test_samples:]
-    y_test = labels[-nb_test_samples:]
-
-
+    x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val, \
+    x1_test, x2_test, x3_test, y_test = split_data(data_shape=data_char,
+                                                   data_char=data_gram, data_word=data_word)
 
     print('Number of different reviews for training and test')
     print(y_train.sum(axis=0))
@@ -987,30 +994,9 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     labels = to_categorical(numpy.asarray(labels))
     print('Label Shape:', labels.shape)
 
-    # split data into training and validation
-    indices = numpy.arange(data_char.shape[0])
-    numpy.random.shuffle(indices)
-    data_shape = data_shape[indices]
-    data_word = data_word[indices]
-    data_char = data_char[indices]
-    labels = labels[indices]
-    # 80% to train, 10% to validation, 10% to test
-    nb_validation_test_samples = int(VALIDATION_SPLIT * data_char.shape[0])
-    nb_test_samples = nb_validation_test_samples/2
-    nb_validation_samples = nb_validation_test_samples - nb_test_samples
-
-    x1_train = data_shape[:-nb_validation_test_samples]
-    x2_train = data_word[:-nb_validation_test_samples]
-    x3_train = data_char[:-nb_validation_test_samples]
-    y_train = labels[:-nb_validation_test_samples]
-    x1_val = data_shape[-nb_validation_test_samples:nb_validation_samples]
-    x2_val = data_word[-nb_validation_test_samples:nb_validation_samples]
-    x3_val = data_char[-nb_validation_test_samples:nb_validation_samples]
-    y_val = labels[-nb_validation_test_samples:nb_validation_samples]
-    x1_test = data_shape[-nb_test_samples:]
-    x2_test = data_word[-nb_test_samples:]
-    x3_test = data_char[-nb_test_samples:]
-    y_test = labels[-nb_test_samples:]
+    x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val, \
+    x1_test, x2_test, x3_test, y_test = split_data(data_shape=data_shape, data_word=data_word,
+                                                   data_char=data_char)
 
     print('Number of different reviews for training and test')
     print(y_train.sum(axis=0))
