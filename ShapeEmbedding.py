@@ -524,7 +524,8 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
 
     x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val, \
     x1_test, x2_test, x3_test, y_test = split_data(data_shape=data_char,
-                                                   data_char=data_gram, data_word=data_word)
+                                                   data_char=data_gram, data_word=data_word,
+                                                   labels=labels)
 
     print('Number of different reviews for training and test')
     print(y_train.sum(axis=0))
@@ -539,20 +540,21 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
                                char_shape_only=True, char_only=True, word_only=True,
                                hatt=True, fasttext=True, skip_unk=False,
                                highway=None, nohighway=None, shape_filter=True, char_filter=True):
+    picklename = filename[:-1] + ".pickle"
     if not skip_unk:
-        try:
-            f = open(filename[:-1] + ".pickle", "rb")
+        if os.path.isfile(picklename):
+            f = open(picklename, "rb")
             (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
              x1_test, x2_test, x3_test, y_test) \
                 = pickle.load(f)
             f.close()
-        except FileNotFoundError:
+        else:
             (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
              x1_test, x2_test, x3_test, y_test) \
                 = prepare_ChnSenti_classification(filename=filename, dev_mode=dev_mode, skip_unk=skip_unk)
-            with open(filename[:-1] + ".pickle", "wb") as f:
+            with open(picklename, "wb") as f:
                 pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
                              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
                              x1_test, x2_test, x3_test, y_test), f)
@@ -846,7 +848,6 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
                        epochs=100, batch_size=BATCH_SIZE,
                        callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
 
-    if word_only:
         print("MODEL: 14 Word Only Attention")
         for run_num in range(MAX_RUN):
             print("RUN: ", run_num)
@@ -996,7 +997,7 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
 
     x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val, \
     x1_test, x2_test, x3_test, y_test = split_data(data_shape=data_shape, data_word=data_word,
-                                                   data_char=data_char)
+                                                   data_char=data_char, labels=labels)
 
     print('Number of different reviews for training and test')
     print(y_train.sum(axis=0))
@@ -1011,15 +1012,16 @@ def do_rakuten_senti_classification(datasize, attention=False, cnn_encoder=True,
                                     char_shape_only=True, char_only=True, word_only=True,
                                     hatt=True, fasttext=True,
                                     skip_unk=False, highway=True, shape_filter=True, char_filter=True):
+    picklename = "Rakuten" + str(datasize) + ".pickle"
     if not skip_unk:
-        try:
-            f = open("Rakuten" + str(datasize) + ".pickle", "rb")
+        if os.path.isfile(picklename):
+            f = open(picklename, "rb")
             (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
              x1_test, x2_test, x3_test, y_test) \
                 = pickle.load(f)
             f.close()
-        except:
+        else:
             (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
              x1_test, x2_test, x3_test, y_test) \
@@ -1318,7 +1320,6 @@ def do_rakuten_senti_classification(datasize, attention=False, cnn_encoder=True,
                        epochs=100, batch_size=BATCH_SIZE,
                        callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
 
-    if word_only:
         print("MODEL: 14 Word Only Attention")
         for run_num in range(MAX_RUN):
             print("RUN: ", run_num)
