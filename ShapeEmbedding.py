@@ -501,17 +501,17 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
     labels = labels[indices]
     # 80% to train, 10% to validation, 10% to test
     nb_validation_test_samples = int(VALIDATION_SPLIT * data_char.shape[0])
-    nb_test_samples = nb_validation_test_samples/2
+    nb_test_samples = int(nb_validation_test_samples/2)
     nb_validation_samples = nb_validation_test_samples - nb_test_samples
 
     x1_train = data_shape[:-nb_validation_test_samples]
     x2_train = data_word[:-nb_validation_test_samples]
     x3_train = data_char[:-nb_validation_test_samples]
     y_train = labels[:-nb_validation_test_samples]
-    x1_val = data_shape[-nb_validation_test_samples:nb_validation_samples]
-    x2_val = data_word[-nb_validation_test_samples:nb_validation_samples]
-    x3_val = data_char[-nb_validation_test_samples:nb_validation_samples]
-    y_val = labels[-nb_validation_test_samples:nb_validation_samples]
+    x1_val = data_shape[-nb_validation_test_samples:-nb_test_samples]
+    x2_val = data_word[-nb_validation_test_samples:-nb_test_samples]
+    x3_val = data_char[-nb_validation_test_samples:-nb_test_samples]
+    y_val = labels[-nb_validation_test_samples:-nb_test_samples]
     x1_test = data_shape[-nb_test_samples:]
     x2_test = data_word[-nb_test_samples:]
     x3_test = data_char[-nb_test_samples:]
@@ -540,7 +540,7 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
              x1_test, x2_test, x3_test, y_test) \
                 = pickle.load(f)
             f.close()
-        except:
+        except FileNotFoundError:
             (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
              x1_test, x2_test, x3_test, y_test) \
