@@ -250,7 +250,7 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
                 feature = Highway(activation='relu')(feature)
         else:
             if nohighway:
-                feature = Dense(activation=nohighway)(feature)
+                feature = Dense(units=600, activation=nohighway)(feature)
             else:
                 pass
     else:
@@ -335,7 +335,7 @@ def build_sentence_rnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10
             if highway:
                 lstm_rnn = TimeDistributed(Highway(activation=highway))(lstm_rnn)
             elif nohighway:
-                lstm_rnn = TimeDistributed(Dense(activation=nohighway))(lstm_rnn)
+                lstm_rnn = TimeDistributed(Dense(units=300, activation=nohighway))(lstm_rnn)
             lstm_rnn = AttentionWithContext()(lstm_rnn)
         else:
             lstm_rnn = Bidirectional(LSTM(150, dropout=dropout, return_sequences=False))(word_feature_sequence)
