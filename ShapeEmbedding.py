@@ -12,6 +12,7 @@ from attention import AttentionWithContext
 from getShapeCode import get_all_word_bukken, get_all_character
 from janome.tokenizer import Tokenizer as JanomeTokenizer
 from keras import backend as K
+from tqdm import tqdm
 
 # MAX_SENTENCE_LENGTH = 739  # large number as 739 makes cudnn die
 MAX_SENTENCE_LENGTH = 500
@@ -477,7 +478,7 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
     num_chars = 0
     num_ideographs = 0
 
-    for i, text in enumerate(texts):
+    for i, text in enumerate(tqdm(texts)):
         for j, word in enumerate(text):
             # word level
             num_words += 1
@@ -902,7 +903,7 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
 
 
 def prepare_rakuten_senti_classification(datasize, skip_unk=False):
-    juman = Jumanpp()
+    # juman = Jumanpp()
     janome_tokenizer = JanomeTokenizer()
     full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
     data_limit_per_class = datasize // 2
@@ -930,19 +931,19 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     num_chars = 0
     num_ideographs = 0
 
-    for i, text in enumerate(positive + negative):
+    for i, text in enumerate(tqdm(positive + negative)):
         # 日语分词
-        janome = False
-        try:
-            parse_result = juman.analysis(text)
-            parse_tokens = parse_result.mrph_list()
-        except ValueError:
-            # print(sys.exc_info())
-            parse_tokens = janome_tokenizer.tokenize(text)
-            janome = True
-        except:
-            print("Unexpected error:", sys.exc_info()[0])
-            raise
+        janome = True
+        # try:
+        #     parse_result = juman.analysis(text)
+        #     parse_tokens = parse_result.mrph_list()
+        # except ValueError:
+            # parse_tokens = janome_tokenizer.tokenize(text)
+            # janome = True
+        # except:
+        #     print("Unexpected error:", sys.exc_info()[0])
+        #     raise
+        parse_tokens = janome_tokenizer.tokenize(text)
         for j, mrph in enumerate(parse_tokens):
             num_words += 1
             if j + 1 > MAX_SENTENCE_LENGTH:
@@ -1519,7 +1520,7 @@ if __name__ == "__main__":
     # test_fasttext()
 
     # GET THE BESTs
-    print("DATASET: CH10000", flush=True)
-    do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/")
+    # print("DATASET: CH10000", flush=True)
+    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/")
     print("DATASET: RAKUTEN(JP) 10000", flush=True)
     do_rakuten_senti_classification(datasize=10000)
