@@ -424,7 +424,8 @@ def split_data(data_shape, data_char, data_word, labels):
 
 def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mode=False, skip_unk=False):
     # get vocab
-    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
+    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, hira_punc_number_latin = get_vocab()
+    n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
 
     TEXT_DATA_DIR = filename
     texts = []  # list of text samples
@@ -501,7 +502,7 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
                 if not skip_unk:
                     if char_g not in full_vocab:
                         full_vocab.append(char_g)
-                if real_vocab_number < char_g_index < preprocessed_char_number:
+                if n_hira_punc_number_latin < char_g_index < preprocessed_char_number:
                     num_ideographs += 1
             # char shape level
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
@@ -905,7 +906,9 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
 def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     # juman = Jumanpp()
     janome_tokenizer = JanomeTokenizer()
-    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, _ = get_vocab()
+    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, hira_punc_number_latin = get_vocab()
+    n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
+
     data_limit_per_class = datasize // 2
     data_size = data_limit_per_class * 2
     with open("rakuten/rakuten_review.pickle", "rb") as f:
@@ -974,7 +977,7 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
                 if not skip_unk:
                     if char_g not in full_vocab:
                         full_vocab.append(char_g)
-                if real_vocab_number < char_g_index < preprocessed_char_number:
+                if n_hira_punc_number_latin < char_g_index < preprocessed_char_number:
                     num_ideographs += 1
             # char shape level
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
@@ -1522,5 +1525,8 @@ if __name__ == "__main__":
     # GET THE BESTs
     # print("DATASET: CH10000", flush=True)
     # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/")
-    print("DATASET: RAKUTEN(JP) 10000", flush=True)
-    do_rakuten_senti_classification(datasize=10000)
+    # print("DATASET: RAKUTEN(JP) 10000", flush=True)
+    # do_rakuten_senti_classification(datasize=10000)
+
+    prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/")
+    prepare_rakuten_senti_classification(datasize=10000)
