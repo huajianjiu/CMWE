@@ -1,5 +1,5 @@
 import re, string, pickle, numpy, pandas, mojimoji, random, os, jieba, sys
-from pyknp import Jumanpp
+# from pyknp import Jumanpp
 from keras import optimizers
 from keras.models import Model
 from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
