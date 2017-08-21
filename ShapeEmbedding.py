@@ -987,7 +987,7 @@ def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, 
     reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
     stopper = EarlyStopping(monitor='val_loss', patience=10)
     checkpoint_loss = ModelCheckpoint(filepath="checkpoints/"+model_name+"_bestloss.hdf5", monitor="val_loss",
-                                      verbose=1, save_best_only=True, mode="min")
+                                      verbose=0, save_best_only=True, mode="min")
     print("compling...")
     model.compile(loss="categorical_crossentropy", optimizer="sgd", metrics=['categorical_crossentropy', "acc"], )
     print("fitting...")
