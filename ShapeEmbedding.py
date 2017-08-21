@@ -580,334 +580,74 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
     print("char vocab size", char_vocab_size)
 
     num_class = 2
-    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
-    stopper = EarlyStopping(monitor='val_loss', patience=10)
+
+    model_index = 0
+
+    data_set_name = filename[:-1]
+    highway_options = [None, "linear", "relu"]
+    nohighway_options = [None, "linear", "relu"]
+    attention_options = [False, True]
 
     if char_shape_only:
-        print("MODEL: 1 Char Shape Only. No highway, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH1_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH1_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway=None,
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 2 Char Shape Only. No highway, Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH2_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH2_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway=None,
-                                        attention=True,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 3 Char Shape Only. No highway but Linear Dense, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH3_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH3_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway="linear",
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 4 Char Shape Only. No highway but ReLU Dense, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH4_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH4_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway="relu",
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 5 Char Shape Only. Linear Highway, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH5_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH5_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway="linear", nohighway=None,
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 6 Char Shape Only. ReLU Highway, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH6_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH6_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway="relu", nohighway=None,
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
+        for highway_option in highway_options:
+            for nohighway_option in nohighway_options:
+                if highway_option and nohighway_option:
+                    continue
+                for attention_option in attention_options:
+                    model_index += 1
+                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
+                                                char_shape=True, word=False, char=False,
+                                                cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
+                                                attention=attention_option, shape_filter=shape_filter, char_filter=char_filter)
+                    train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test, data_set_name+"model"+str(model_index))
 
     if char_only:
-        print("MODEL: 7 Char Only No Highway No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH7_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH7_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+        for highway_option in highway_options:
+            for nohighway_option in nohighway_options:
+                if highway_option and nohighway_option:
+                    continue
+                for attention_option in attention_options:
+                    model_index += 1
+                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
                                         classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=None,
+                                        attention=attention_option, word=False, char=True, char_shape=False,
+                                        cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
                                         shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 8 Char Only No Highway Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH8_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH8_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=True, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=None,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 9 Char Only Linear Dense No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH9_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH9_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway="linear",
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 10 Char Only ReLU Dense No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH10_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH10_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway="relu",
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 11 Char Only Linear Highway No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH11_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH11_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway="linear", nohighway=None,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 12 Char Only ReLU Highway No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH12_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH12_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway="relu", nohighway=None,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-    if word_only:
-        print("MODEL: 13 Word Only No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH13_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH13_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model4 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                        classes=num_class, attention=False, char_shape=False, char=False,
-                                        cnn_encoder=cnn_encoder)
-            model4.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'])
-            model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
+                    train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test, data_set_name+"model"+str(model_index))
 
-        print("MODEL: 14 Word Only Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH14_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH14_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model4 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                        classes=num_class, attention=True, char_shape=False, char=False,
-                                        cnn_encoder=cnn_encoder)
-            model4.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'])
-            model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_loss, checkpoint_acc])
+    if word_only:
+        for highway_option in highway_options:
+            for nohighway_option in nohighway_options:
+                if highway_option and nohighway_option:
+                    continue
+                for attention_option in attention_options:
+                    model_index += 1
+                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    model = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
+                                        classes=num_class,
+                                        attention=attention_option, word=True, char=False, char_shape=False,
+                                        cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
+                                        shape_filter=shape_filter, char_filter=char_filter)
+                    train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test, data_set_name+"model"+str(model_index))
+
     if hatt:
+        model_index += 1
         print("MODEL: 15 HATT")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH15_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH15_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            x_train = numpy.reshape(x2_train, (x2_train.shape[0], 5, 100))
-            x_val = numpy.reshape(x2_val, (x2_val.shape[0], 5, 100))
-            model = build_hatt(word_vocab_size, 2)
-            model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=["acc"], )
-            model.fit(x_train, y_train, validation_data=(x_val, y_val),
-                      epochs=100, batch_size=BATCH_SIZE,
-                      callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
+        _x_train = numpy.reshape(x2_train, (x2_train.shape[0], 5, 100))
+        _x_val = numpy.reshape(x2_val, (x2_val.shape[0], 5, 100))
+        _x_test = numpy.reshape(x2_test, (x2_test.shape[0], 5, 100))
+        model = build_hatt(word_vocab_size, 2)
+        train_and_test_model(model, _x_train, y_train, _x_val, y_val, _x_test, y_test,
+                             data_set_name + "model" + str(model_index))
 
     if fasttext:
+        model_index += 1
         print("MODEL: 16 fastText")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELCH16_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(filepath="checkpoints/MODELCH16_run" + str(run_num) + "_bestloss.hdf5",
-                                              monitor="val_loss", verbose=1, save_best_only=True,
-                                              mode="min")
-            model = build_fasttext(word_vocab_size, 2)
-            model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=["acc"], )
-            model.fit(x2_train, y_train, validation_data=(x2_val, y_val),
-                      epochs=100, batch_size=BATCH_SIZE,
-                      callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
+        model = build_fasttext(word_vocab_size, 2)
+        train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
+                             data_set_name + "model" + str(model_index))
 
 
 def prepare_rakuten_senti_classification(datasize, skip_unk=False):
@@ -1070,350 +810,73 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
     print("char vocab size", char_vocab_size)
 
     num_class = 2
-    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
-    stopper = EarlyStopping(monitor='val_loss', patience=10)
+    model_index = 0
+
+    data_set_name = "Rakuten"+str(datasize)
+    highway_options = [None, "linear", "relu"]
+    nohighway_options = [None, "linear", "relu"]
+    attention_options = [False, True]
 
     if char_shape_only:
-        print("MODEL: 1 Char Shape Only. No highway, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN1_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN1_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway=None,
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 2 Char Shape Only. No highway, Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN2_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN2_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway=None,
-                                        attention=True,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 3 Char Shape Only. No highway but Linear Dense, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN3_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN3_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway="linear",
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 4 Char Shape Only. No highway but ReLU Dense, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN4_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN4_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway="relu",
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 5 Char Shape Only. Linear Highway, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN5_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN5_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway="linear", nohighway=None,
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-
-        print("MODEL: 6 Char Shape Only. ReLU Highway, No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN6_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN6_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                        char_shape=True, word=False, char=False,
-                                        cnn_encoder=cnn_encoder, highway="relu", nohighway=None,
-                                        attention=False,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            print("START FITTING")
-            model2.fit(x1_train, y_train, validation_data=(x1_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
+        for highway_option in highway_options:
+            for nohighway_option in nohighway_options:
+                if highway_option and nohighway_option:
+                    continue
+                for attention_option in attention_options:
+                    model_index += 1
+                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
+                                                char_shape=True, word=False, char=False,
+                                                cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
+                                                attention=attention_option, shape_filter=shape_filter, char_filter=char_filter)
+                    train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test, data_set_name+"model"+str(model_index))
 
     if char_only:
-        print("MODEL: 7 Char Only No Highway No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN7_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN7_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+        for highway_option in highway_options:
+            for nohighway_option in nohighway_options:
+                if highway_option and nohighway_option:
+                    continue
+                for attention_option in attention_options:
+                    model_index += 1
+                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
                                         classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=None,
+                                        attention=attention_option, word=False, char=True, char_shape=False,
+                                        cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
                                         shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 8 Char Only No Highway Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN8_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN8_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=True, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=None,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 9 Char Only Linear Dense No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN9_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN9_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway="linear",
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 10 Char Only ReLU Dense No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN10_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN10_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=None, nohighway="relu",
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 11 Char Only Linear Highway No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN11_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN11_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway="linear", nohighway=None,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-        print("MODEL: 12 Char Only ReLU Highway No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN12_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN12_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model2 = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=False, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway="relu", nohighway=None,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-            model2.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'], )
-            model2.fit(x3_train, y_train, validation_data=(x3_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
-    if word_only:
-        print("MODEL: 13 Word Only No Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN13_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN13_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model4 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                        classes=num_class, attention=False, char_shape=False, char=False,
-                                        cnn_encoder=cnn_encoder)
-            model4.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'])
-            model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
+                    train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test, data_set_name+"model"+str(model_index))
 
-        print("MODEL: 14 Word Only Attention")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN14_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN14_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model4 = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                        classes=num_class, attention=True, char_shape=False, char=False,
-                                        cnn_encoder=cnn_encoder)
-            model4.compile(loss='categorical_crossentropy',
-                           optimizer='rmsprop',
-                           metrics=['acc'])
-            model4.fit(x2_train, y_train, validation_data=(x2_val, y_val),
-                       epochs=100, batch_size=BATCH_SIZE,
-                       callbacks=[reducelr, stopper, checkpoint_loss, checkpoint_acc])
+    if word_only:
+        for highway_option in highway_options:
+            for nohighway_option in nohighway_options:
+                if highway_option and nohighway_option:
+                    continue
+                for attention_option in attention_options:
+                    model_index += 1
+                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    model = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
+                                        classes=num_class,
+                                        attention=attention_option, word=True, char=False, char_shape=False,
+                                        cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
+                                        shape_filter=shape_filter, char_filter=char_filter)
+                    train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test, data_set_name+"model"+str(model_index))
+
     if hatt:
+        model_index += 1
         print("MODEL: 15 HATT")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN15_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN15_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            x_train = numpy.reshape(x2_train, (x2_train.shape[0], 5, 100))
-            x_val = numpy.reshape(x2_val, (x2_val.shape[0], 5, 100))
-            model = build_hatt(word_vocab_size, 2)
-            model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=["acc"], )
-            model.fit(x_train, y_train, validation_data=(x_val, y_val),
-                      epochs=100, batch_size=BATCH_SIZE,
-                      callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
+        _x_train = numpy.reshape(x2_train, (x2_train.shape[0], 5, 100))
+        _x_val = numpy.reshape(x2_val, (x2_val.shape[0], 5, 100))
+        _x_test = numpy.reshape(x2_test, (x2_test.shape[0], 5, 100))
+        model = build_hatt(word_vocab_size, 2)
+        train_and_test_model(model, _x_train, y_train, _x_val, y_val, _x_test, y_test,
+                             data_set_name + "model" + str(model_index))
 
     if fasttext:
+        model_index += 1
         print("MODEL: 16 fastText")
-        for run_num in range(MAX_RUN):
-            print("RUN: ", run_num)
-            checkpoint_acc = ModelCheckpoint(filepath="checkpoints/MODELRAKUTEN16_run" + str(run_num) + "_bestacc.hdf5",
-                                             monitor="val_acc", verbose=1, save_best_only=True,
-                                             mode="max")
-            checkpoint_loss = ModelCheckpoint(
-                filepath="checkpoints/MODELRAKUTEN16_run" + str(run_num) + "_bestloss.hdf5",
-                monitor="val_loss", verbose=1, save_best_only=True,
-                mode="min")
-            model = build_fasttext(word_vocab_size, 2)
-            model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=["acc"], )
-            model.fit(x2_train, y_train, validation_data=(x2_val, y_val),
-                      epochs=100, batch_size=BATCH_SIZE,
-                      callbacks=[reducelr, stopper, checkpoint_acc, checkpoint_loss])
+        model = build_fasttext(word_vocab_size, 2)
+        train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
+                             data_set_name + "model" + str(model_index))
 
 
 def test_classifier(attention=False, cnn_encoder=True):
@@ -1519,17 +982,19 @@ def test_fasttext():
     model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=15, batch_size=BATCH_SIZE)
 
 
-def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, real_vocab_number, classes,
-                         char_shape, word, char, cnn_encoder, highway, nohighway, attention, shape_filter, char_filter):
+def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name):
     print(model_name)
     reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
     stopper = EarlyStopping(monitor='val_loss', patience=10)
     checkpoint_loss = ModelCheckpoint(filepath="checkpoints/"+model_name+"_bestloss.hdf5", monitor="val_loss",
                                       verbose=1, save_best_only=True, mode="min")
-    model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy', "acc"], )
+    print("compling...")
+    model.compile(loss="categorical_crossentropy", optimizer="sgd", metrics=['categorical_crossentropy', "acc"], )
+    print("fitting...")
     model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=0,
               epochs=100, batch_size=BATCH_SIZE, callbacks=[reducelr, stopper, checkpoint_loss])
     model.load_weights("checkpoints/"+model_name+"_bestloss.hdf5")
+    print("testing...")
     scores = model.evaluate(x_test, y_test, verbose=0)
     print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
     print("%s: %.2f%%" % (model.metrics_names[2], scores[2] * 100))
@@ -1578,11 +1043,11 @@ if __name__ == "__main__":
     # test_fasttext()
 
     # GET THE BESTs
-    # print("DATASET: CH10000", flush=True)
-    # do_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/")
-    # print("DATASET: RAKUTEN(JP) 10000", flush=True)
-    # do_rakuten_senti_classification(datasize=10000)
+    print("DATASET: CH10000", flush=True)
+    do_ChnSenti_classification_multimodel(filename="ChnSentiCorp_htl_unba_10000/")
+    print("DATASET: RAKUTEN(JP) 10000", flush=True)
+    do_rakuten_senti_classification_multimodel(datasize=10000)
 
     # prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/")
     # prepare_rakuten_senti_classification(datasize=10000)
-    do_test_ctrip_multi("ChnSentiCorp_htl_unba_10000/")
+    # do_test_ctrip_multi("ChnSentiCorp_htl_unba_10000/")
