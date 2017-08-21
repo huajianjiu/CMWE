@@ -93,6 +93,7 @@ def get_vocab(opts=None):
     # note: the space and punctuations in Jp sometimes show emotion
 
     vocab_chara, vocab_bukken, chara_bukken = get_all_word_bukken()
+    # print(hira_punc_number_latin)
     hira_punc_number_latin_number = len(hira_punc_number_latin) + 2
     print("totally {n} kana, punctuation and latin char".format(n=str(hira_punc_number_latin_number)))
     vocab = ["</padblank>", "</s>"] + list(hira_punc_number_latin) + vocab_bukken
@@ -473,7 +474,7 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
     print("Data shape: {shape}".format(shape=str(data_char.shape)))
 
     word_vocab = ["</s>"]
-    gram_vocab = ["</s>"] + get_all_character()
+    char_vocab = ["</s>"] + get_all_character()
 
     num_words = 0
     num_chars = 0
@@ -492,18 +493,19 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
             # single char gram level
             for l, char_g in enumerate(word):
                 num_chars += 1
-                if char_g not in gram_vocab:
-                    gram_vocab.append(char_g)
-                    char_g_index = len(gram_vocab) - 1
+                if char_g not in char_vocab:
+                    char_vocab.append(char_g)
+                    char_g_index = len(char_vocab) - 1
                 else:
-                    char_g_index = gram_vocab.index(char_g)
+                    char_g_index = char_vocab.index(char_g)
                 if l < MAX_WORD_LENGTH:
                     data_gram[i, j, l] = char_g_index
                 if not skip_unk:
                     if char_g not in full_vocab:
                         full_vocab.append(char_g)
-                if n_hira_punc_number_latin < char_g_index < preprocessed_char_number:
-                    num_ideographs += 1
+                if char_g in full_vocab:
+                    if n_hira_punc_number_latin < full_vocab.index(char_g) < preprocessed_char_number:
+                        num_ideographs += 1
             # char shape level
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                             chara_bukken_revised=chara_bukken_revised,
@@ -533,7 +535,12 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
     print(y_train.sum(axis=0))
     print(y_val.sum(axis=0))
 
-    return full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, gram_vocab, \
+    with open(filename[:-1] + ".pickle", "wb") as f:
+        pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
+                     x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
+                     x1_test, x2_test, x3_test, y_test), f)
+
+    return full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab, \
            x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val, \
            x1_test, x2_test, x3_test, y_test
 
@@ -906,7 +913,7 @@ def do_ChnSenti_classification(filename, dev_mode=False, attention=False, cnn_en
 def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     # juman = Jumanpp()
     janome_tokenizer = JanomeTokenizer()
-    full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, hira_punc_number_latin = get_vocab()
+    full_vocab, real_vocab_number, chara_bukken_revised, addition_translate, hira_punc_number_latin = get_vocab()
     n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
 
     data_limit_per_class = datasize // 2
@@ -965,6 +972,16 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
                 word_index = word_vocab.index(word_genkei)
             data_word[i, j] = word_index
             # single char gram level
+            # convert digital number and latin to hangaku
+            word = mojimoji.zen_to_han(word, kana=False)
+            # convert kana to zengaku
+            word = mojimoji.han_to_zen(word, digit=False, ascii=False)
+            # convert kata to hira
+            _, katakana2hiragana, _ = _make_kana_convertor()
+            word = katakana2hiragana(word)
+            word = word.translate(addition_translate)
+            # finally, lowercase
+            word = word.lower()
             for l, char_g in enumerate(word):
                 num_chars += 1
                 if char_g not in char_vocab:
@@ -977,12 +994,13 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
                 if not skip_unk:
                     if char_g not in full_vocab:
                         full_vocab.append(char_g)
-                if n_hira_punc_number_latin < char_g_index < preprocessed_char_number:
-                    num_ideographs += 1
+                if char_g in full_vocab:
+                    if n_hira_punc_number_latin < full_vocab.index(char_g) < preprocessed_char_number:
+                        num_ideographs += 1
             # char shape level
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                             chara_bukken_revised=chara_bukken_revised,
-                                            addition_translate=addtional_translate,
+                                            addition_translate=addition_translate,
                                             preprocessed_char_number=preprocessed_char_number,
                                             sentence_text=word, skip_unknown=skip_unk)
             if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
@@ -1006,6 +1024,11 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     print('Number of different reviews for training and test')
     print(y_train.sum(axis=0))
     print(y_val.sum(axis=0))
+
+    with open("Rakuten" + str(datasize) + ".pickle", "wb") as f:
+        pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
+                     x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
+                     x1_test, x2_test, x3_test, y_test), f)
 
     return full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab, \
            x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val, \
