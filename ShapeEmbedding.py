@@ -1,9 +1,10 @@
 import re, string, pickle, numpy, pandas, mojimoji, random, os, jieba, sys
+import tensorflow as tf
 # from pyknp import Jumanpp
 from keras import optimizers
 from keras.models import Model
 from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
-    Bidirectional, LSTM, Dense, Flatten, GRU
+    Bidirectional, LSTM, Dense, Flatten, GRU, Lambda
 from keras.legacy.layers import Highway
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping, CSVLogger, ModelCheckpoint
 from keras.utils.np_utils import to_categorical
@@ -982,12 +983,36 @@ def test_fasttext():
     model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=15, batch_size=BATCH_SIZE)
 
 
+def slice_batch(x, n_gpus, part):
+    sh = K.shape(x)
+    L = sh[0] / n_gpus
+    L = tf.to_int32(L)
+    if part == n_gpus - 1:
+        return x[part * L:]
+    return x[part * L:(part + 1) * L]
+
+
+def to_multi_gpu(model, n_gpus=2):
+    with tf.device('/cpu:0'):
+        x = Input(model.input_shape[1:], name=model.input_names[0])
+    towers = []
+    for g in range(n_gpus):
+        with tf.device('/gpu:' + str(g)):
+            slice_g = Lambda(slice_batch, lambda shape: shape,
+                            arguments={'n_gpus':n_gpus, 'part':g})(x)
+            towers.append(model(slice_g))
+    with tf.device('/cpu:0'):
+        merged = concatenate(towers, axis=0)
+    return Model(inputs=x, outputs=merged)
+
+
 def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name):
+    # model = to_multi_gpu(model)
     print(model_name)
     reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
     stopper = EarlyStopping(monitor='val_loss', patience=10)
     checkpoint_loss = ModelCheckpoint(filepath="checkpoints/"+model_name+"_bestloss.hdf5", monitor="val_loss",
-                                      verbose=0, save_best_only=True, mode="min")
+                                      verbose=1, save_best_only=True, mode="min")
     print("compling...")
     model.compile(loss="categorical_crossentropy", optimizer="sgd", metrics=['categorical_crossentropy', "acc"], )
     print("fitting...")
@@ -1043,10 +1068,10 @@ if __name__ == "__main__":
     # test_fasttext()
 
     # GET THE BESTs
-    print("DATASET: CH10000", flush=True)
-    do_ChnSenti_classification_multimodel(filename="ChnSentiCorp_htl_unba_10000/")
-    print("DATASET: RAKUTEN(JP) 10000", flush=True)
-    do_rakuten_senti_classification_multimodel(datasize=10000)
+    # print("DATASET: CH10000", flush=True)
+    # do_ChnSenti_classification_multimodel(filename="ChnSentiCorp_htl_unba_10000/")
+    # print("DATASET: RAKUTEN(JP) 10000", flush=True)
+    # do_rakuten_senti_classification_multimodel(datasize=10000)
 
     # prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/")
     # prepare_rakuten_senti_classification(datasize=10000)
