@@ -74,7 +74,11 @@ def load_shape_data(datafile="usc-shape_bukken_data.pickle"):
     return data["words"], data["bukkens"], data["word_bukken"]
 
 
-def get_vocab(opts=None):
+def shuffle_kv(d):
+    pass
+
+
+def get_vocab(shuffle=False):
     # convert kata to hira
     char_emb_dim = CHAR_EMB_DIM
     use_component = True  # True for component level False for chara level
@@ -596,7 +600,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
                                                 char_shape=True, word=False, char=False,
                                                 cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
@@ -610,7 +614,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
                                         classes=num_class,
                                         attention=attention_option, word=False, char=True, char_shape=False,
@@ -625,7 +629,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
                                         classes=num_class,
                                         attention=attention_option, word=True, char=False, char_shape=False,
@@ -825,7 +829,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
                                                 char_shape=True, word=False, char=False,
                                                 cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
@@ -839,7 +843,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
                                         classes=num_class,
                                         attention=attention_option, word=False, char=True, char_shape=False,
@@ -854,7 +858,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention)
+                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
                                         classes=num_class,
                                         attention=attention_option, word=True, char=False, char_shape=False,
@@ -1012,9 +1016,9 @@ def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, 
     reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
     stopper = EarlyStopping(monitor='val_loss', patience=10)
     checkpoint_loss = ModelCheckpoint(filepath="checkpoints/"+model_name+"_bestloss.hdf5", monitor="val_loss",
-                                      verbose=1, save_best_only=True, mode="min")
+                                      verbose=0, save_best_only=True, mode="min")
     print("compling...")
-    model.compile(loss="categorical_crossentropy", optimizer="sgd", metrics=['categorical_crossentropy', "acc"], )
+    model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy', "acc"], )
     print("fitting...")
     model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=0,
               epochs=100, batch_size=BATCH_SIZE, callbacks=[reducelr, stopper, checkpoint_loss])
@@ -1068,8 +1072,8 @@ if __name__ == "__main__":
     # test_fasttext()
 
     # GET THE BESTs
-    # print("DATASET: CH10000", flush=True)
-    # do_ChnSenti_classification_multimodel(filename="ChnSentiCorp_htl_unba_10000/")
+    print("DATASET: CH10000", flush=True)
+    do_ChnSenti_classification_multimodel(filename="ChnSentiCorp_htl_unba_10000/")
     # print("DATASET: RAKUTEN(JP) 10000", flush=True)
     # do_rakuten_senti_classification_multimodel(datasize=10000)
 
