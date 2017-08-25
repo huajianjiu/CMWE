@@ -14,6 +14,7 @@ from getShapeCode import get_all_word_bukken, get_all_character
 from janome.tokenizer import Tokenizer as JanomeTokenizer
 from keras import backend as K
 from tqdm import tqdm
+from matplotlib import pyplot as plt
 
 # MAX_SENTENCE_LENGTH = 739  # large number as 739 makes cudnn die
 MAX_SENTENCE_LENGTH = 500
@@ -75,7 +76,13 @@ def load_shape_data(datafile="usc-shape_bukken_data.pickle"):
 
 
 def shuffle_kv(d):
-    pass
+    keys = []
+    values = []
+    for key, value in d.items():
+        keys.append(key)
+        values.append(value)
+    random.shuffle(values)
+    return dict(zip(keys, values))
 
 
 def get_vocab(shuffle=False):
@@ -118,8 +125,8 @@ def get_vocab(shuffle=False):
 
 
 def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sentence_text, addition_translate,
-                       mode="padding", comp_width=COMP_WIDTH, preprocessed_char_number=0,
-                       skip_unknown=False):
+                       comp_width=COMP_WIDTH, preprocessed_char_number=0,
+                       skip_unknown=False, flip=False):
     # mode:
     # average: will repeat the original index to #comp_width for the process of the embedding layer
     # padding: will pad the original index to #comp_width with zero for the process of the embedding layer
@@ -145,46 +152,28 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
         ch2id[w] = i
     int_text = []
     # print(text)
-    if mode == "average":
-        for c in text:
-            try:
-                i = ch2id[c]
-            except KeyError:
-                if skip_unknown:
-                    continue  # skip unknown words
-                else:
-                    i = 1  # assign to unknown words
-            if i > real_vocab_number:
-                comps = chara_bukken_revised[i]
-                if len(comps) >= comp_width:
-                    int_text += comps[:comp_width]
-                elif len(comps) == 1:
-                    int_text += [i] * comp_width
-                else:
-                    int_text += comps + [0] * (comp_width - len(comps))
+    for c in text:
+        # print(c)
+        try:
+            i = ch2id[c]
+        except KeyError:
+            print("Unknown Character: ", c)
+            if skip_unknown:
+                continue  # skip unknown words
             else:
-                int_text += [i] * comp_width
-    elif mode == "padding":
-        for c in text:
-            # print(c)
-            try:
-                i = ch2id[c]
-            except KeyError:
-                print("Unknown Character: ", c)
-                if skip_unknown:
-                    continue  # skip unknown words
-                else:
-                    i = 1  # assign to unknown words
-            # print(i)
-            if real_vocab_number < i < preprocessed_char_number:
-                comps = chara_bukken_revised[i]
-                # print(comps)
-                if len(comps) >= comp_width:
-                    int_text += comps[:comp_width]
-                else:
-                    int_text += comps + [0] * (comp_width - len(comps))
+                i = 1  # assign to unknown words
+        # print(i)
+        if real_vocab_number < i < preprocessed_char_number:
+            comps = chara_bukken_revised[i]
+            # print(comps)
+            if len(comps) >= comp_width:
+                int_text += comps[:comp_width]
+                if flip:
+                    int_text = int_text[::-1]
             else:
-                int_text += [i] + [0] * (comp_width - 1)
+                int_text += comps + [0] * (comp_width - len(comps))
+        else:
+            int_text += [i] + [0] * (comp_width - 1)
     return int_text
 
 
@@ -428,7 +417,7 @@ def split_data(data_shape, data_char, data_word, labels):
            x1_test, x2_test, x3_test, y_test
 
 
-def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mode=False, skip_unk=False):
+def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mode=False, skip_unk=False, shuffle=None):
     # get vocab
     full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, hira_punc_number_latin = get_vocab()
     n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
@@ -485,6 +474,9 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
     num_chars = 0
     num_ideographs = 0
 
+    if shuffle == "random":
+        chara_bukken_revised = shuffle_kv(chara_bukken_revised)
+
     for i, text in enumerate(tqdm(texts)):
         for j, word in enumerate(text):
             # word level
@@ -512,11 +504,18 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
                     if n_hira_punc_number_latin < full_vocab.index(char_g) < preprocessed_char_number:
                         num_ideographs += 1
             # char shape level
-            char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                            chara_bukken_revised=chara_bukken_revised,
-                                            addition_translate=addtional_translate,
-                                            sentence_text=word, preprocessed_char_number=preprocessed_char_number,
-                                            skip_unknown=skip_unk)
+            if shuffle == "flip":
+                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                                chara_bukken_revised=chara_bukken_revised,
+                                                addition_translate=addtional_translate,
+                                                sentence_text=word, preprocessed_char_number=preprocessed_char_number,
+                                                skip_unknown=skip_unk, flip=True)
+            else:
+                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                                chara_bukken_revised=chara_bukken_revised,
+                                                addition_translate=addtional_translate,
+                                                sentence_text=word, preprocessed_char_number=preprocessed_char_number,
+                                                skip_unknown=skip_unk, flip=False)
             if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
             elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
@@ -550,11 +549,12 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
            x1_test, x2_test, x3_test, y_test
 
 
-def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=False, cnn_encoder=True,
+def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=True,
                                           char_shape_only=True, char_only=True, word_only=True,
                                           hatt=True, fasttext=True, skip_unk=False,
-                                          highway=None, nohighway=None, shape_filter=True, char_filter=True):
-    picklename = filename[:-1] + ".pickle"
+                                          shape_filter=True, char_filter=True, shuffle=None,
+                                          highway_options=None, nohighway_options=None, attention_options=None):
+    picklename = filename[:-1] + "_shuffle_" + str(shuffle) + ".pickle"
     if not skip_unk:
         if os.path.isfile(picklename):
             f = open(picklename, "rb")
@@ -567,7 +567,8 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
             (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
              x1_test, x2_test, x3_test, y_test) \
-                = prepare_ChnSenti_classification(filename=filename, dev_mode=dev_mode, skip_unk=skip_unk)
+                = prepare_ChnSenti_classification(filename=filename, dev_mode=dev_mode, skip_unk=skip_unk,
+                                                  shuffle=shuffle)
             with open(picklename, "wb") as f:
                 pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
                              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
@@ -576,7 +577,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
         (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
          x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
          x1_test, x2_test, x3_test, y_test) \
-            = prepare_ChnSenti_classification(filename=filename, dev_mode=dev_mode, skip_unk=skip_unk)
+            = prepare_ChnSenti_classification(filename=filename, dev_mode=dev_mode, skip_unk=skip_unk, shuffle=shuffle)
 
     word_vocab_size = len(word_vocab)
     char_vocab_size = len(char_vocab)
@@ -589,9 +590,12 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
     model_index = 0
 
     data_set_name = filename[:-1]
-    highway_options = [None, "linear", "relu"]
-    nohighway_options = [None, "linear", "relu"]
-    attention_options = [False, True]
+    if highway_options is None:
+        highway_options = [None, "linear", "relu"]
+    if nohighway_options is None:
+        nohighway_options = [None, "linear", "relu"]
+    if attention_options is None:
+        attention_options = [False, True]
 
     if char_shape_only:
         for highway_option in highway_options:
@@ -600,12 +604,16 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
+                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option,
+                          " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                                char_shape=True, word=False, char=False,
-                                                cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
-                                                attention=attention_option, shape_filter=shape_filter, char_filter=char_filter)
-                    train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test, data_set_name+"model"+str(model_index))
+                                               char_shape=True, word=False, char=False,
+                                               cnn_encoder=cnn_encoder, highway=highway_option,
+                                               nohighway=nohighway_option,
+                                               attention=attention_option, shape_filter=shape_filter,
+                                               char_filter=char_filter)
+                    result = train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test,
+                                                  data_set_name + "model" + str(model_index))
 
     if char_only:
         for highway_option in highway_options:
@@ -614,13 +622,16 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
+                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option,
+                          " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=attention_option, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-                    train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test, data_set_name+"model"+str(model_index))
+                                               classes=num_class,
+                                               attention=attention_option, word=False, char=True, char_shape=False,
+                                               cnn_encoder=cnn_encoder, highway=highway_option,
+                                               nohighway=nohighway_option,
+                                               shape_filter=shape_filter, char_filter=char_filter)
+                    train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test,
+                                         data_set_name + "model" + str(model_index))
 
     if word_only:
         for highway_option in highway_options:
@@ -629,13 +640,16 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
+                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option,
+                          " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                        classes=num_class,
-                                        attention=attention_option, word=True, char=False, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-                    train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test, data_set_name+"model"+str(model_index))
+                                               classes=num_class,
+                                               attention=attention_option, word=True, char=False, char_shape=False,
+                                               cnn_encoder=cnn_encoder, highway=highway_option,
+                                               nohighway=nohighway_option,
+                                               shape_filter=shape_filter, char_filter=char_filter)
+                    train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
+                                         data_set_name + "model" + str(model_index))
 
     if hatt:
         model_index += 1
@@ -653,12 +667,13 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, attention=Fa
         model = build_fasttext(word_vocab_size, 2)
         train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
                              data_set_name + "model" + str(model_index))
+    return result
 
 
-def prepare_rakuten_senti_classification(datasize, skip_unk=False):
+def prepare_rakuten_senti_classification(datasize, skip_unk=False, shuffle=None):
     # juman = Jumanpp()
     janome_tokenizer = JanomeTokenizer()
-    full_vocab, real_vocab_number, chara_bukken_revised, addition_translate, hira_punc_number_latin = get_vocab()
+    full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin = get_vocab()
     n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
 
     data_limit_per_class = datasize // 2
@@ -685,6 +700,9 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
     num_words = 0
     num_chars = 0
     num_ideographs = 0
+
+    if shuffle == "random":
+        chara_bukken_revised = shuffle_kv(chara_bukken_revised)
 
     for i, text in enumerate(tqdm(positive + negative)):
         # 日语分词
@@ -743,11 +761,18 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
                     if n_hira_punc_number_latin < full_vocab.index(char_g) < preprocessed_char_number:
                         num_ideographs += 1
             # char shape level
-            char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                            chara_bukken_revised=chara_bukken_revised,
-                                            addition_translate=addition_translate,
-                                            preprocessed_char_number=preprocessed_char_number,
-                                            sentence_text=word, skip_unknown=skip_unk)
+            if shuffle == "flip":
+                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                                chara_bukken_revised=chara_bukken_revised,
+                                                addition_translate=additional_translate,
+                                                sentence_text=word, preprocessed_char_number=preprocessed_char_number,
+                                                skip_unknown=skip_unk, flip=True)
+            else:
+                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                                chara_bukken_revised=chara_bukken_revised,
+                                                addition_translate=additional_translate,
+                                                sentence_text=word, preprocessed_char_number=preprocessed_char_number,
+                                                skip_unknown=skip_unk, flip=False)
             if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
             elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
@@ -782,9 +807,11 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False):
 
 def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_encoder=True,
                                                char_shape_only=True, char_only=True, word_only=True,
-                                               hatt=True, fasttext=True,
-                                               skip_unk=False, highway=True, shape_filter=True, char_filter=True):
-    picklename = "Rakuten" + str(datasize) + ".pickle"
+                                               hatt=True, fasttext=True, skip_unk=False, shape_filter=True,
+                                               char_filter=True,
+                                               shuffle=None, highway_options=None, nohighway_options=None,
+                                               attention_options=None):
+    picklename = "Rakuten" + str(datasize) + "_shuffle_" + str(shuffle) + ".pickle"
     if not skip_unk:
         if os.path.isfile(picklename):
             f = open(picklename, "rb")
@@ -797,7 +824,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
             (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
              x1_test, x2_test, x3_test, y_test) \
-                = prepare_rakuten_senti_classification(datasize, skip_unk=skip_unk)
+                = prepare_rakuten_senti_classification(datasize, skip_unk=skip_unk, shuffle=shuffle)
             with open("Rakuten" + str(datasize) + ".pickle", "wb") as f:
                 pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
                              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
@@ -806,7 +833,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
         (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
          x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
          x1_test, x2_test, x3_test, y_test) \
-            = prepare_rakuten_senti_classification(datasize, skip_unk=skip_unk)
+            = prepare_rakuten_senti_classification(datasize, skip_unk=skip_unk, shuffle=shuffle)
 
     word_vocab_size = len(word_vocab)
     char_vocab_size = len(char_vocab)
@@ -817,10 +844,13 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
     num_class = 2
     model_index = 0
 
-    data_set_name = "Rakuten"+str(datasize)
-    highway_options = [None, "linear", "relu"]
-    nohighway_options = [None, "linear", "relu"]
-    attention_options = [False, True]
+    data_set_name = "Rakuten" + str(datasize)
+    if highway_options is None:
+        highway_options = [None, "linear", "relu"]
+    if nohighway_options is None:
+        nohighway_options = [None, "linear", "relu"]
+    if attention_options is None:
+        attention_options = [False, True]
 
     if char_shape_only:
         for highway_option in highway_options:
@@ -829,12 +859,16 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
+                    print("MODEL:", str(model_index), " SHAPE Highway:", highway_option, " Dense:", nohighway_option,
+                          " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
-                                                char_shape=True, word=False, char=False,
-                                                cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
-                                                attention=attention_option, shape_filter=shape_filter, char_filter=char_filter)
-                    train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test, data_set_name+"model"+str(model_index))
+                                               char_shape=True, word=False, char=False,
+                                               cnn_encoder=cnn_encoder, highway=highway_option,
+                                               nohighway=nohighway_option,
+                                               attention=attention_option, shape_filter=shape_filter,
+                                               char_filter=char_filter)
+                    result = train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test,
+                                                  data_set_name + "model" + str(model_index))
 
     if char_only:
         for highway_option in highway_options:
@@ -843,13 +877,16 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
+                    print("MODEL:", str(model_index), " CHAR Highway:", highway_option, " Dense:", nohighway_option,
+                          " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                                        classes=num_class,
-                                        attention=attention_option, word=False, char=True, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-                    train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test, data_set_name+"model"+str(model_index))
+                                               classes=num_class,
+                                               attention=attention_option, word=False, char=True, char_shape=False,
+                                               cnn_encoder=cnn_encoder, highway=highway_option,
+                                               nohighway=nohighway_option,
+                                               shape_filter=shape_filter, char_filter=char_filter)
+                    train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test,
+                                         data_set_name + "model" + str(model_index))
 
     if word_only:
         for highway_option in highway_options:
@@ -858,13 +895,16 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
                     continue
                 for attention_option in attention_options:
                     model_index += 1
-                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option, " Attention:", attention_option)
+                    print("MODEL:", str(model_index), " WORD Highway:", highway_option, " Dense:", nohighway_option,
+                          " Attention:", attention_option)
                     model = build_sentence_rnn(real_vocab_number=real_vocab_number, word_vocab_size=word_vocab_size,
-                                        classes=num_class,
-                                        attention=attention_option, word=True, char=False, char_shape=False,
-                                        cnn_encoder=cnn_encoder, highway=highway_option, nohighway=nohighway_option,
-                                        shape_filter=shape_filter, char_filter=char_filter)
-                    train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test, data_set_name+"model"+str(model_index))
+                                               classes=num_class,
+                                               attention=attention_option, word=True, char=False, char_shape=False,
+                                               cnn_encoder=cnn_encoder, highway=highway_option,
+                                               nohighway=nohighway_option,
+                                               shape_filter=shape_filter, char_filter=char_filter)
+                    train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
+                                         data_set_name + "model" + str(model_index))
 
     if hatt:
         model_index += 1
@@ -882,6 +922,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
         model = build_fasttext(word_vocab_size, 2)
         train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
                              data_set_name + "model" + str(model_index))
+    return result
 
 
 def test_classifier(attention=False, cnn_encoder=True):
@@ -1003,30 +1044,55 @@ def to_multi_gpu(model, n_gpus=2):
     for g in range(n_gpus):
         with tf.device('/gpu:' + str(g)):
             slice_g = Lambda(slice_batch, lambda shape: shape,
-                            arguments={'n_gpus':n_gpus, 'part':g})(x)
+                             arguments={'n_gpus': n_gpus, 'part': g})(x)
             towers.append(model(slice_g))
     with tf.device('/cpu:0'):
         merged = concatenate(towers, axis=0)
     return Model(inputs=x, outputs=merged)
 
 
-def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name):
+def plot_results(results, dirname):
+    x = range(100)
+    # plot accuracy of train data
+    for k, result in results.items():
+        plt.plot(x, result.history['loss'], label=k)
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.xlabel('Epoch')
+    plt.ylabel('Training Error')
+    plt.savefig('plots/' + dirname + "_train.png")
+
+    # plot accuracy of validation data
+    for k, result in results.items():
+        plt.plot(x, result.history['val_loss'], label=k)
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.xlabel('Epoch')
+    plt.ylabel('Validation Error')
+    plt.savefig('plots/' + dirname[:-1] + "_val.png")
+
+
+def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
     # model = to_multi_gpu(model)
     print(model_name)
     reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
-    stopper = EarlyStopping(monitor='val_loss', patience=10)
-    checkpoint_loss = ModelCheckpoint(filepath="checkpoints/"+model_name+"_bestloss.hdf5", monitor="val_loss",
+    if early_stop:
+        stopper = EarlyStopping(monitor='val_loss', patience=10)
+    checkpoint_loss = ModelCheckpoint(filepath="checkpoints/" + model_name + "_bestloss.hdf5", monitor="val_loss",
                                       verbose=0, save_best_only=True, mode="min")
     print("compling...")
     model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy', "acc"], )
     print("fitting...")
-    model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=0,
-              epochs=100, batch_size=BATCH_SIZE, callbacks=[reducelr, stopper, checkpoint_loss])
-    model.load_weights("checkpoints/"+model_name+"_bestloss.hdf5")
+    if early_stop:
+        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=0,
+                           epochs=100, batch_size=BATCH_SIZE, callbacks=[reducelr, stopper, checkpoint_loss])
+    else:
+        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=0,
+                           epochs=100, batch_size=BATCH_SIZE, callbacks=[reducelr, checkpoint_loss])
+    model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
     print("testing...")
     scores = model.evaluate(x_test, y_test, verbose=0)
     print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
     print("%s: %.2f%%" % (model.metrics_names[2], scores[2] * 100))
+    return result
 
 
 if __name__ == "__main__":
@@ -1057,26 +1123,25 @@ if __name__ == "__main__":
     # output_array = model.predict([input1_array, input2_array])
     # print(output_array.shape)
 
-    # Test data preprocess
-    # data = kyoto_classification_job(dev_mode=False, juman=True)
-    # for words in data[120:129]:
-    #     for word in words:
-    #         for token in word:
-    #             if token != 0:
-    #                 print(full_vocab[token], end="")
-    #     print("\n", end="")
-    # print("no attention")
-
-    # test_classifier()
-    # test_HATT()
-    # test_fasttext()
-
-    # GET THE BESTs
-    print("DATASET: CH10000", flush=True)
-    do_ChnSenti_classification_multimodel(filename="ChnSentiCorp_htl_unba_10000/")
-    # print("DATASET: RAKUTEN(JP) 10000", flush=True)
-    # do_rakuten_senti_classification_multimodel(datasize=10000)
-
-    # prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/")
-    # prepare_rakuten_senti_classification(datasize=10000)
-    # do_test_ctrip_multi("ChnSentiCorp_htl_unba_10000/")
+    # random shape / mirror flip shape
+    print("Ctrip", flush=True)
+    results = {}
+    dirname = "ChnSentiCorp_htl_unba_10000/"
+    for shuffle in [None, "random", "flip"]:
+        model_name = "Radical embedding-based on Ctrip 10k Shuffle: " + str(shuffle)
+        results[model_name] = do_ChnSenti_classification_multimodel(filename=dirname,
+                                                                    highway_options=[None],
+                                                                    nohighway_options=["linear"],
+                                                                    attention_options=[None],
+                                                                    shuffle=shuffle)
+        plot_results(results, dirname[dirname.find("Chn"):-1])
+    print("Rakuten", flush=True)
+    results = {}
+    for shuffle in [None, "random", "flip"]:
+        model_name = "Radical embedding-based on Rakuten 10k Shuffle: " + str(shuffle)
+        results[model_name] = do_rakuten_senti_classification_multimodel(datasize=10000,
+                                                                         highway_options=[None],
+                                                                         nohighway_options=["linear"],
+                                                                         attention_options=[None],
+                                                                         shuffle=shuffle)
+    plot_results(results, "rakuten_10k")
