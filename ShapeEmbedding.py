@@ -26,7 +26,7 @@ TEST_SPLIT = 0.1
 BATCH_SIZE = 100
 WORD_DIM = 600
 MAX_RUN = 1
-
+VERBOSE = 0
 
 def _make_kana_convertor():
     # by http://d.hatena.ne.jp/mohayonao/20091129/1259505966
@@ -852,6 +852,8 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
     if attention_options is None:
         attention_options = [False, True]
 
+    result = None
+
     if char_shape_only:
         for highway_option in highway_options:
             for nohighway_option in nohighway_options:
@@ -1018,15 +1020,16 @@ def test_fasttext():
 
     x_train = data_word[:-nb_validation_samples]
     y_train = y_data[:-nb_validation_samples]
-    x_val = data_word[-nb_validation_samples:]
-    y_val = y_data[-nb_validation_samples:]
+    x_test = x_val = data_word[-nb_validation_samples:]
+    y_test = y_val = y_data[-nb_validation_samples:]
 
     word_vocab_size = 10
 
-    model = build_fasttext(word_vocab_size, 2)
-    model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=["acc"], )
-    model.fit(x_train, y_train, validation_data=(x_val, y_val), epochs=15, batch_size=BATCH_SIZE)
-
+    results={}
+    for k in ["a", "b", "c"]:
+        model = build_fasttext(word_vocab_size, 2)
+        results[k] = train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, k)
+    plot_results(results, "ut")
 
 def slice_batch(x, n_gpus, part):
     sh = K.shape(x)
@@ -1052,22 +1055,25 @@ def to_multi_gpu(model, n_gpus=2):
 
 
 def plot_results(results, dirname):
-    x = range(100)
+    plt.figure(1)
+
+    plt.subplot(211)
     # plot accuracy of train data
     for k, result in results.items():
-        plt.plot(x, result.history['loss'], label=k)
+        plt.plot(result.history['loss'], label=k)
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.xlabel('Epoch')
     plt.ylabel('Training Error')
-    plt.savefig('plots/' + dirname + "_train.png")
 
+    plt.subplot(212)
     # plot accuracy of validation data
     for k, result in results.items():
-        plt.plot(x, result.history['val_loss'], label=k)
+        plt.plot(result.history['val_loss'], label=k)
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.xlabel('Epoch')
     plt.ylabel('Validation Error')
-    plt.savefig('plots/' + dirname[:-1] + "_val.png")
+
+    plt.show()
 
 
 def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
@@ -1077,15 +1083,15 @@ def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, 
     if early_stop:
         stopper = EarlyStopping(monitor='val_loss', patience=10)
     checkpoint_loss = ModelCheckpoint(filepath="checkpoints/" + model_name + "_bestloss.hdf5", monitor="val_loss",
-                                      verbose=0, save_best_only=True, mode="min")
+                                      verbose=VERBOSE, save_best_only=True, mode="min")
     print("compling...")
     model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy', "acc"], )
     print("fitting...")
     if early_stop:
-        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=0,
+        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=VERBOSE,
                            epochs=100, batch_size=BATCH_SIZE, callbacks=[reducelr, stopper, checkpoint_loss])
     else:
-        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=0,
+        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=VERBOSE,
                            epochs=100, batch_size=BATCH_SIZE, callbacks=[reducelr, checkpoint_loss])
     model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
     print("testing...")
@@ -1094,6 +1100,42 @@ def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, 
     print("%s: %.2f%%" % (model.metrics_names[2], scores[2] * 100))
     return result
 
+
+def deformation_experiment_c():
+    # random shape / mirror flip shape
+    print("Ctrip", flush=True)
+    results = {}
+    dirname = "ChnSentiCorp_htl_unba_10000/"
+    for shuffle in [None, "random", "flip"]:
+        model_name = "Radical embedding-based on Ctrip 10k Shuffle: " + str(shuffle)
+        results[model_name] = do_ChnSenti_classification_multimodel(filename=dirname,
+                                                                    char_only=False,
+                                                                    word_only=False,
+                                                                    hatt=False,
+                                                                    fasttext=False,
+                                                                    highway_options=[None],
+                                                                    nohighway_options=["linear"],
+                                                                    attention_options=[None],
+                                                                    shuffle=shuffle)
+    plot_results(results, dirname[dirname.find("Chn"):-1])
+
+
+def deformation_experiment_j():
+    # random shape / mirror flip shape
+    print("Rakuten", flush=True)
+    results = {}
+    for shuffle in [None, "random", "flip"]:
+        model_name = "Radical embedding-based on Rakuten 10k Shuffle: " + str(shuffle)
+        results[model_name] = do_rakuten_senti_classification_multimodel(datasize=10000,
+                                                                         char_only=False,
+                                                                         word_only=False,
+                                                                         hatt=False,
+                                                                         fasttext=False,
+                                                                         highway_options=[None],
+                                                                         nohighway_options=["linear"],
+                                                                         attention_options=[None],
+                                                                         shuffle=shuffle)
+    plot_results(results, "rakuten_10k")
 
 if __name__ == "__main__":
     # Test Vocab
@@ -1122,26 +1164,5 @@ if __name__ == "__main__":
     # input2_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, ))
     # output_array = model.predict([input1_array, input2_array])
     # print(output_array.shape)
+    test_fasttext()
 
-    # random shape / mirror flip shape
-    print("Ctrip", flush=True)
-    results = {}
-    dirname = "ChnSentiCorp_htl_unba_10000/"
-    for shuffle in [None, "random", "flip"]:
-        model_name = "Radical embedding-based on Ctrip 10k Shuffle: " + str(shuffle)
-        results[model_name] = do_ChnSenti_classification_multimodel(filename=dirname,
-                                                                    highway_options=[None],
-                                                                    nohighway_options=["linear"],
-                                                                    attention_options=[None],
-                                                                    shuffle=shuffle)
-        plot_results(results, dirname[dirname.find("Chn"):-1])
-    print("Rakuten", flush=True)
-    results = {}
-    for shuffle in [None, "random", "flip"]:
-        model_name = "Radical embedding-based on Rakuten 10k Shuffle: " + str(shuffle)
-        results[model_name] = do_rakuten_senti_classification_multimodel(datasize=10000,
-                                                                         highway_options=[None],
-                                                                         nohighway_options=["linear"],
-                                                                         attention_options=[None],
-                                                                         shuffle=shuffle)
-    plot_results(results, "rakuten_10k")
