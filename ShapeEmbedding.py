@@ -1074,7 +1074,7 @@ def plot_results(results, dirname):
     plt.ylabel('Validation Error')
 
     plt.gcf().tight_layout()
-    plt.savefig("ut.png")
+    plt.savefig('plots/'+dirname[:-1]+"_val.png")
 
 
 def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
