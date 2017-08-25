@@ -1026,10 +1026,11 @@ def test_fasttext():
     word_vocab_size = 10
 
     results={}
-    for k in ["a", "b", "c"]:
+    for k in ["aaaaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccccc"]:
         model = build_fasttext(word_vocab_size, 2)
         results[k] = train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, k)
     plot_results(results, "ut")
+
 
 def slice_batch(x, n_gpus, part):
     sh = K.shape(x)
@@ -1056,24 +1057,24 @@ def to_multi_gpu(model, n_gpus=2):
 
 def plot_results(results, dirname):
     plt.figure(1)
-
     plt.subplot(211)
     # plot accuracy of train data
     for k, result in results.items():
         plt.plot(result.history['loss'], label=k)
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.xlabel('Epoch')
+    plt.legend(loc='upper right')
+    xlab1 = plt.xlabel('Epoch')
     plt.ylabel('Training Error')
 
     plt.subplot(212)
     # plot accuracy of validation data
     for k, result in results.items():
         plt.plot(result.history['val_loss'], label=k)
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.xlabel('Epoch')
+    plt.legend(loc='upper right')
+    xlab2 = plt.xlabel('Epoch')
     plt.ylabel('Validation Error')
 
-    plt.show()
+    plt.gcf().tight_layout()
+    plt.savefig("ut.png")
 
 
 def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
