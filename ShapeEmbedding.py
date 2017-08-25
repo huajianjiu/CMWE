@@ -1069,7 +1069,7 @@ def plot_results(results, dirname):
     # plot accuracy of validation data
     for k, result in results.items():
         plt.plot(result.history['val_loss'], label=k)
-    plt.legend(loc='upper right')
+    plt.legend(loc='center right')
     xlab2 = plt.xlabel('Epoch')
     plt.ylabel('Validation Error')
 
