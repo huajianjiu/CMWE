@@ -1031,6 +1031,12 @@ def test_fasttext():
         results[k] = train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, k)
     plot_results(results, "ut")
 
+    results = {}
+    for k in ["aaaaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccccc"]:
+        model = build_fasttext(word_vocab_size, 2)
+        results[k] = train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, k)
+    plot_results(results, "ut2")
+
 
 def slice_batch(x, n_gpus, part):
     sh = K.shape(x)
@@ -1056,26 +1062,28 @@ def to_multi_gpu(model, n_gpus=2):
 
 
 def plot_results(results, dirname):
-    plt.figure(1)
-    plt.subplot(211)
+    fig = plt.figure(1)
+    fig.clf()
+    ax1 = fig.add_subplot(211)
     # plot accuracy of train data
     for k, result in results.items():
-        plt.plot(result.history['loss'], label=k)
-    plt.legend(loc='upper right')
-    xlab1 = plt.xlabel('Epoch')
+        ax1.plot(result.history['loss'], label=k)
+    handles, labels = ax1.get_legend_handles_labels()
+    lgd1 = plt.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.04, 1))
+    plt.xlabel('Epoch')
     plt.ylabel('Training Error')
 
-    plt.subplot(212)
-    # plot accuracy of validation data
+    ax2 = fig.add_subplot(212)
+    # plot accuracy of train data
     for k, result in results.items():
-        plt.plot(result.history['val_loss'], label=k)
-    plt.legend(loc='center right')
-    xlab2 = plt.xlabel('Epoch')
+        ax2.plot(result.history['val_loss'], label=k)
+    handles, labels = ax2.get_legend_handles_labels()
+    lgd2 = plt.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.04, 1))
+    plt.xlabel('Epoch')
     plt.ylabel('Validation Error')
 
     plt.gcf().tight_layout()
-    plt.savefig('plots/'+dirname[:-1]+"_val.png")
-
+    plt.savefig('plots/'+dirname[:-1]+"_val.png", bbox_extra_artists=(lgd1, lgd2,), bbox_inches='tight')
 
 def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
     # model = to_multi_gpu(model)
