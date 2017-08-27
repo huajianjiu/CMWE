@@ -742,7 +742,7 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False, shuffle=None)
             # convert kata to hira
             _, katakana2hiragana, _ = _make_kana_convertor()
             word = katakana2hiragana(word)
-            word = word.translate(addition_translate)
+            word = word.translate(additional_translate)
             # finally, lowercase
             word = word.lower()
             for l, char_g in enumerate(word):
@@ -1173,5 +1173,7 @@ if __name__ == "__main__":
     # input2_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, ))
     # output_array = model.predict([input1_array, input2_array])
     # print(output_array.shape)
-    test_fasttext()
+    # test_fasttext()
 
+    deformation_experiment_c()
+    deformation_experiment_j()
