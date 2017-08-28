@@ -1067,8 +1067,11 @@ def plot_results(results, dirname):
     fig.clf()
     ax1 = fig.add_subplot(211)
     # plot accuracy of train data
+    lines = ["-", "--", ":", "-."]
+    i = 0
     for k, result in results.items():
-        ax1.plot(result.history['loss'], label=k)
+        ax1.plot(result.history['loss'], label=k, linestyple=lines[i])
+        i += 0
     handles, labels = ax1.get_legend_handles_labels()
     lgd1 = plt.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.04, 1))
     plt.xlabel('Epoch')
@@ -1076,8 +1079,11 @@ def plot_results(results, dirname):
 
     ax2 = fig.add_subplot(212)
     # plot accuracy of train data
+    lines = ["-", "--", ":", "-."]
+    i = 0
     for k, result in results.items():
-        ax2.plot(result.history['val_loss'], label=k)
+        ax1.plot(result.history['loss'], label=k, linestyple=lines[i])
+        i += 0
     handles, labels = ax2.get_legend_handles_labels()
     lgd2 = plt.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.04, 1))
     plt.xlabel('Epoch')
@@ -1129,6 +1135,7 @@ def prepare_char_shuffle(lang, shuffle="random"):
         negative = negative[:data_limit_per_class]
         labels = [1] * data_limit_per_class + [0] * data_limit_per_class
         texts = positive + negative
+    data_size = len(texts)
     processed_texts=[]
     word_vocabulary = {}
     # build word_vocabulary
