@@ -1188,12 +1188,12 @@ def prepare_char_shuffle(lang, shuffle="random"):
     return x_train, y_train, x_val, y_val, x_test, y_test, len(char_vocab)
 
 
-def do_char_based_deformation_ex(lang, shuffle=None):
+def do_char_based_deformation_ex(lang):
     print(lang, flush=True)
     results = {}
-    dirname = lang + ": "+str(shuffle)
+    dirname = lang + "_Char_embedding_deformation"
     models_names = ["True Data", "In-word Characters Shuffled", "Words Swapped"]
-    for i, shuffle in enumerate([None, "random", "flip"]):
+    for i, shuffle in enumerate([None, "shuffle", "random"]):
         model_name = models_names[i]
         x_train, y_train, x_val, y_val, x_test, y_test, char_vocab_size = prepare_char_shuffle(lang, shuffle)
         model = build_sentence_rnn(real_vocab_number=2000, char_vocab_size=char_vocab_size, classes=2,
@@ -1295,5 +1295,8 @@ if __name__ == "__main__":
     # print(output_array.shape)
     # test_fasttext()
 
-    deformation_experiment_c()
-    deformation_experiment_j()
+    # deformation_experiment_c()
+    # deformation_experiment_j()
+
+    do_char_based_deformation_ex("CH")
+    do_char_based_deformation_ex("JP")
