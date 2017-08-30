@@ -86,6 +86,39 @@ def shuffle_kv(d):
     return dict(zip(keys, values))
 
 
+def save_curve_data(results, filename):
+    to_save = []
+    for k, result in results.items():
+        to_save.append({"label":k, "train_loss_history":result.history['loss'], "val_loss_history":result.history['val_loss']})
+    with open(filename, "wb") as f:
+        pickle.dump(to_save, f)
+
+
+def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
+    # model = to_multi_gpu(model)
+    print(model_name)
+    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
+    if early_stop:
+        stopper = EarlyStopping(monitor='val_loss', patience=10)
+    checkpoint_loss = ModelCheckpoint(filepath="checkpoints/" + model_name + "_bestloss.hdf5", monitor="val_loss",
+                                      verbose=VERBOSE, save_best_only=True, mode="min")
+    print("compling...")
+    model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy', "acc"], )
+    print("fitting...")
+    if early_stop:
+        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=VERBOSE,
+                           epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[reducelr, stopper, checkpoint_loss])
+    else:
+        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=VERBOSE,
+                           epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[reducelr, checkpoint_loss])
+    model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
+    print("testing...")
+    scores = model.evaluate(x_test, y_test, verbose=0)
+    print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
+    print("%s: %.2f%%" % (model.metrics_names[2], scores[2] * 100))
+    return result
+
+
 def get_vocab(shuffle=False):
     # convert kata to hira
     char_emb_dim = CHAR_EMB_DIM
@@ -127,7 +160,7 @@ def get_vocab(shuffle=False):
 
 def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sentence_text, addition_translate,
                        comp_width=COMP_WIDTH, preprocessed_char_number=0,
-                       skip_unknown=False, flip=False):
+                       skip_unknown=False, shuffle=None):
     # mode:
     # average: will repeat the original index to #comp_width for the process of the embedding layer
     # padding: will pad the original index to #comp_width with zero for the process of the embedding layer
@@ -166,14 +199,17 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
         # print(i)
         if real_vocab_number < i < preprocessed_char_number:
             comps = chara_bukken_revised[i]
+            if shuffle == "flip":
+                comps = comps[::-1]
             # print(comps)
             if len(comps) >= comp_width:
                 int_text += comps[:comp_width]
-                if flip:
-                    int_text = int_text[::-1]
             else:
                 int_text += comps + [0] * (comp_width - len(comps))
         else:
+            if shuffle=="random":
+                if i<real_vocab_number:
+                    i = (i+20)%real_vocab_number
             int_text += [i] + [0] * (comp_width - 1)
     return int_text
 
@@ -510,13 +546,13 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
                                                 chara_bukken_revised=chara_bukken_revised,
                                                 addition_translate=addtional_translate,
                                                 sentence_text=word, preprocessed_char_number=preprocessed_char_number,
-                                                skip_unknown=skip_unk, flip=True)
+                                                skip_unknown=skip_unk, shuffle=shuffle)
             else:
                 char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                                 chara_bukken_revised=chara_bukken_revised,
                                                 addition_translate=addtional_translate,
                                                 sentence_text=word, preprocessed_char_number=preprocessed_char_number,
-                                                skip_unknown=skip_unk, flip=False)
+                                                skip_unknown=skip_unk, shuffle=shuffle)
             if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
             elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
@@ -1037,6 +1073,7 @@ def test_fasttext():
         model = build_fasttext(word_vocab_size, 2)
         results[k] = train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, k)
     plot_results(results, "ut2")
+    save_curve_data(results, "ut2")
 
 
 def slice_batch(x, n_gpus, part):
@@ -1070,7 +1107,7 @@ def plot_results(results, dirname):
     lines = ["-", "--", ":", "-."]
     i = 0
     for k, result in results.items():
-        ax1.plot(result.history['loss'], label=k, linestyple=lines[i])
+        ax1.plot(result.history['loss'], label=k, linestyle=lines[i])
         i += 0
     handles, labels = ax1.get_legend_handles_labels()
     lgd1 = plt.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.04, 1))
@@ -1082,7 +1119,7 @@ def plot_results(results, dirname):
     lines = ["-", "--", ":", "-."]
     i = 0
     for k, result in results.items():
-        ax1.plot(result.history['loss'], label=k, linestyple=lines[i])
+        ax1.plot(result.history['loss'], label=k, linestyle=lines[i])
         i += 0
     handles, labels = ax2.get_legend_handles_labels()
     lgd2 = plt.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.04, 1))
@@ -1208,31 +1245,7 @@ def do_char_based_deformation_ex(lang):
                                    nohighway=None)
         results[model_name] = train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name)
     plot_results(results, dirname)
-
-
-def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
-    # model = to_multi_gpu(model)
-    print(model_name)
-    reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
-    if early_stop:
-        stopper = EarlyStopping(monitor='val_loss', patience=10)
-    checkpoint_loss = ModelCheckpoint(filepath="checkpoints/" + model_name + "_bestloss.hdf5", monitor="val_loss",
-                                      verbose=VERBOSE, save_best_only=True, mode="min")
-    print("compling...")
-    model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy', "acc"], )
-    print("fitting...")
-    if early_stop:
-        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=VERBOSE,
-                           epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[reducelr, stopper, checkpoint_loss])
-    else:
-        result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=VERBOSE,
-                           epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[reducelr, checkpoint_loss])
-    model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
-    print("testing...")
-    scores = model.evaluate(x_test, y_test, verbose=0)
-    print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
-    print("%s: %.2f%%" % (model.metrics_names[2], scores[2] * 100))
-    return result
+    save_curve_data(results, "do_char_based_deformation_ex.pickle")
 
 
 def deformation_experiment_c():
@@ -1253,6 +1266,7 @@ def deformation_experiment_c():
                                                                     attention_options=[None],
                                                                     shuffle=shuffle)
     plot_results(results, dirname[dirname.find("Chn"):-1])
+    save_curve_data(results, "deformation_experiment_c.pickle")
 
 
 def deformation_experiment_j():
@@ -1272,6 +1286,8 @@ def deformation_experiment_j():
                                                                          attention_options=[None],
                                                                          shuffle=shuffle)
     plot_results(results, "rakuten_10k")
+    save_curve_data(results, "deformation_experiment_j.pickle")
+
 
 if __name__ == "__main__":
     # Test Vocab
@@ -1300,10 +1316,10 @@ if __name__ == "__main__":
     # input2_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, ))
     # output_array = model.predict([input1_array, input2_array])
     # print(output_array.shape)
-    # test_fasttext()
+    test_fasttext()
 
-    # deformation_experiment_c()
-    # deformation_experiment_j()
+    deformation_experiment_c()
+    deformation_experiment_j()
 
     do_char_based_deformation_ex("CH")
     do_char_based_deformation_ex("JP")
