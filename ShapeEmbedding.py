@@ -14,7 +14,8 @@ from getShapeCode import get_all_word_bukken, get_all_character
 from janome.tokenizer import Tokenizer as JanomeTokenizer
 from keras import backend as K
 from tqdm import tqdm
-from matplotlib import pyplot as plt
+from plot_results import plot_results, save_curve_data
+
 
 # MAX_SENTENCE_LENGTH = 739  # large number as 739 makes cudnn die
 MAX_SENTENCE_LENGTH = 500
@@ -84,14 +85,6 @@ def shuffle_kv(d):
         values.append(value)
     random.shuffle(values)
     return dict(zip(keys, values))
-
-
-def save_curve_data(results, filename):
-    to_save = []
-    for k, result in results.items():
-        to_save.append({"label":k, "train_loss_history":result.history['loss'], "val_loss_history":result.history['val_loss']})
-    with open(filename, "wb") as f:
-        pickle.dump(to_save, f)
 
 
 def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
@@ -541,18 +534,12 @@ def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mo
                     if n_hira_punc_number_latin < full_vocab.index(char_g) < preprocessed_char_number:
                         num_ideographs += 1
             # char shape level
-            if shuffle == "flip":
-                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                                chara_bukken_revised=chara_bukken_revised,
-                                                addition_translate=addtional_translate,
-                                                sentence_text=word, preprocessed_char_number=preprocessed_char_number,
-                                                skip_unknown=skip_unk, shuffle=shuffle)
-            else:
-                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                                chara_bukken_revised=chara_bukken_revised,
-                                                addition_translate=addtional_translate,
-                                                sentence_text=word, preprocessed_char_number=preprocessed_char_number,
-                                                skip_unknown=skip_unk, shuffle=shuffle)
+            char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                            chara_bukken_revised=chara_bukken_revised,
+                                            addition_translate=addtional_translate,
+                                            sentence_text=word, preprocessed_char_number=preprocessed_char_number,
+                                            skip_unknown=skip_unk, shuffle=shuffle)
+
             if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
             elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
@@ -798,18 +785,12 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False, shuffle=None)
                     if n_hira_punc_number_latin < full_vocab.index(char_g) < preprocessed_char_number:
                         num_ideographs += 1
             # char shape level
-            if shuffle == "flip":
-                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                                chara_bukken_revised=chara_bukken_revised,
-                                                addition_translate=additional_translate,
-                                                sentence_text=word, preprocessed_char_number=preprocessed_char_number,
-                                                skip_unknown=skip_unk, flip=True)
-            else:
-                char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
-                                                chara_bukken_revised=chara_bukken_revised,
-                                                addition_translate=additional_translate,
-                                                sentence_text=word, preprocessed_char_number=preprocessed_char_number,
-                                                skip_unknown=skip_unk, flip=False)
+            char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                            chara_bukken_revised=chara_bukken_revised,
+                                            addition_translate=additional_translate,
+                                            sentence_text=word, preprocessed_char_number=preprocessed_char_number,
+                                            skip_unknown=skip_unk, shuffle=shuffle)
+
             if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
             elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
@@ -1099,37 +1080,6 @@ def to_multi_gpu(model, n_gpus=2):
     return Model(inputs=x, outputs=merged)
 
 
-def plot_results(results, dirname):
-    fig = plt.figure(1)
-    fig.clf()
-    ax1 = fig.add_subplot(211)
-    # plot accuracy of train data
-    lines = ["-", "--", ":", "-."]
-    i = 0
-    for k, result in results.items():
-        ax1.plot(result.history['loss'], label=k, linestyle=lines[i])
-        i += 0
-    handles, labels = ax1.get_legend_handles_labels()
-    lgd1 = plt.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.04, 1))
-    plt.xlabel('Epoch')
-    plt.ylabel('Training Error')
-
-    ax2 = fig.add_subplot(212)
-    # plot accuracy of train data
-    lines = ["-", "--", ":", "-."]
-    i = 0
-    for k, result in results.items():
-        ax1.plot(result.history['loss'], label=k, linestyle=lines[i])
-        i += 0
-    handles, labels = ax2.get_legend_handles_labels()
-    lgd2 = plt.legend(handles, labels, loc='upper left', bbox_to_anchor=(1.04, 1))
-    plt.xlabel('Epoch')
-    plt.ylabel('Validation Error')
-
-    plt.gcf().tight_layout()
-    plt.savefig('plots/'+dirname[:-1]+"_val.png", bbox_extra_artists=(lgd1, lgd2,), bbox_inches='tight')
-
-
 def prepare_char_shuffle(lang, shuffle="random"):
     # shuffle characters in each word: word -> dorw (shuffle="shuffle") or randomly swap words (shuffle="random")
     texts = []  # list of text samples
@@ -1316,8 +1266,8 @@ if __name__ == "__main__":
     # input2_array = numpy.random.randint(5, size=(30, MAX_SENTENCE_LENGTH, ))
     # output_array = model.predict([input1_array, input2_array])
     # print(output_array.shape)
-    test_fasttext()
-
+    # test_fasttext()
+    #
     deformation_experiment_c()
     deformation_experiment_j()
 
