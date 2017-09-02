@@ -15,6 +15,7 @@ from janome.tokenizer import Tokenizer as JanomeTokenizer
 from keras import backend as K
 from tqdm import tqdm
 from plot_results import plot_results, save_curve_data
+from dataReader import prepare_char, prepare_word, shuffle_kv
 
 
 # MAX_SENTENCE_LENGTH = 739  # large number as 739 makes cudnn die
@@ -76,15 +77,6 @@ def load_shape_data(datafile="usc-shape_bukken_data.pickle"):
         data = pickle.load(f)
     return data["words"], data["bukkens"], data["word_bukken"]
 
-
-def shuffle_kv(d):
-    keys = []
-    values = []
-    for key, value in d.items():
-        keys.append(key)
-        values.append(value)
-    random.shuffle(values)
-    return dict(zip(keys, values))
 
 
 def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
@@ -1080,107 +1072,29 @@ def to_multi_gpu(model, n_gpus=2):
     return Model(inputs=x, outputs=merged)
 
 
-def prepare_char_shuffle(lang, shuffle="random"):
-    # shuffle characters in each word: word -> dorw (shuffle="shuffle") or randomly swap words (shuffle="random")
-    texts = []  # list of text samples
-    labels_index = {}  # dictionary mapping label name to numeric id
-    labels = []  # list of label ids
-    if lang=="CH":
-        for name in sorted(os.listdir("ChnSentiCorp_htl_unba_10000/")):
-            path = os.path.join("ChnSentiCorp_htl_unba_10000/", name)
-            if os.path.isdir(path):
-                label_id = len(labels_index)
-                labels_index[name] = label_id
-                for fname in sorted(os.listdir(path)):
-                    fpath = os.path.join(path, fname)
-                    if sys.version_info < (3,):
-                        f = open(fpath)
-                    else:
-                        f = open(fpath, encoding='gbk')
-                    try:
-                        t = f.read()
-                    except UnicodeDecodeError:
-                        continue
-                    t = t.translate(str.maketrans("", "", "\n"))
-                    # if len(t_list) > maxlen:
-                    #     maxlen = len(t_list)
-                    if len(t) > MAX_SENTENCE_LENGTH:
-                        t = t[:MAX_SENTENCE_LENGTH]
-                    texts.append(t)
-                    f.close()
-                    labels.append(label_id)
-    elif lang=="JP":
-        janome_tokenizer = JanomeTokenizer()
-        datasize = 10000
-        data_limit_per_class = datasize // 2
-        data_size = data_limit_per_class * 2
-        with open("rakuten/rakuten_review.pickle", "rb") as f:
-            positive, negative = pickle.load(f)
-        random.shuffle(positive)
-        random.shuffle(negative)
-        positive = positive[:data_limit_per_class]
-        negative = negative[:data_limit_per_class]
-        labels = [1] * data_limit_per_class + [0] * data_limit_per_class
-        texts = positive + negative
-    data_size = len(texts)
-    processed_texts=[]
-    word_vocabulary = {}
-    # build word_vocabulary
-    for i, text in enumerate(tqdm(texts)):
-        if lang=="CH":
-            t_list = list(jieba.cut(text, cut_all=False))
-        elif lang=="JP":
-            t_list = janome_tokenizer.tokenize(text)
-        processed_texts.append(t_list)
-        for word in t_list:
-            if lang=="JP":
-                word = word.surface
-            word_vocabulary[word] = word
-    if shuffle=="random":
-        word_vocabulary = shuffle_kv(word_vocabulary)
-    elif shuffle=="shuffle":
-        word_vocabulary_new = {}
-        for k, v in word_vocabulary.items():
-            list_v = list(v)
-            random.shuffle(list_v)
-            word_vocabulary_new[k] = "".join(list_v)
-        word_vocabulary = word_vocabulary_new
-    else:
-        pass
-    # build data
-    char_vocab = ["</s>"]
-    data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype=numpy.int32)  # data_char
-    for i, text in enumerate(tqdm(processed_texts)):
-        for j, word in enumerate(text):
-            if lang=="JP":
-                word = word.surface
-            for k, char in enumerate(word_vocabulary[word]):
-                if char not in char_vocab:
-                    char_vocab.append(char)
-                    char_index = len(char_vocab) - 1
-                else:
-                    char_index = char_vocab.index(char)
-                if k < MAX_WORD_LENGTH:
-                    data_char[i, j, k] = char_index
-    labels = to_categorical(numpy.asarray(labels))
-    # split data into training and validation
-    indices = numpy.arange(data_char.shape[0])
-    numpy.random.shuffle(indices)
-    data_char = data_char[indices]
-    labels = labels[indices]
-    # 80% to train, 10% to validation, 10% to test
-    nb_validation_test_samples = int((VALIDATION_SPLIT + TEST_SPLIT) * data_char.shape[0])
-    nb_test_samples = int((TEST_SPLIT) * data_char.shape[0])
 
-    x_train = data_char[:-nb_validation_test_samples]
-    y_train = labels[:-nb_validation_test_samples]
-    x_val = data_char[-nb_validation_test_samples:-nb_test_samples]
-    y_val = labels[-nb_validation_test_samples:-nb_test_samples]
-    x_test = data_char[-nb_test_samples:]
-    y_test = labels[-nb_test_samples:]
-
-    return x_train, y_train, x_val, y_val, x_test, y_test, len(char_vocab)
-
+def limited_dict_experiment(lang):
+    print(lang, flush=True)
+    dict_limit = 2489
+    print("character")
+    x_train, y_train, x_val, y_val, x_test, y_test, char_vocab_size = prepare_char(lang, dict_limit=dict_limit)
+    model = build_sentence_rnn(real_vocab_number=2000, char_vocab_size=char_vocab_size, classes=2,
+                               attention=False, word=False, char=True, char_shape=False, highway='relu',
+                               nohighway=None)
+    train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, "character_limit_dict_2489")
+    print("word")
+    x_train, y_train, x_val, y_val, x_test, y_test, word_vocab_size = prepare_word(lang, dict_limit=dict_limit)
+    model = build_sentence_rnn(real_vocab_number=2000, word_vocab_size=word_vocab_size, classes=2,
+                               attention=True, word=True, char=False, char_shape=False, highway='relu',
+                               nohighway=None)
+    train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, "word_rnn_limit_dict_2489")
+    model = build_fasttext(word_vocab_size, 2)
+    train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, "word_fasttext_limit_dict_2489")
+    _x_train = numpy.reshape(x_train, (x_train.shape[0], 5, 100))
+    _x_val = numpy.reshape(x_val, (x_val.shape[0], 5, 100))
+    _x_test = numpy.reshape(x_test, (x_test.shape[0], 5, 100))
+    model = build_hatt(word_vocab_size, 2)
+    train_and_test_model(model, _x_train, y_train, _x_val, y_val, _x_test, y_test, "word_hatt_limit_dict_2489")
 
 def do_char_based_deformation_ex(lang):
     print(lang, flush=True)
@@ -1189,7 +1103,7 @@ def do_char_based_deformation_ex(lang):
     models_names = ["True Data", "In-word Characters Shuffled", "Words Swapped"]
     for i, shuffle in enumerate([None, "shuffle", "random"]):
         model_name = models_names[i]
-        x_train, y_train, x_val, y_val, x_test, y_test, char_vocab_size = prepare_char_shuffle(lang, shuffle)
+        x_train, y_train, x_val, y_val, x_test, y_test, char_vocab_size = prepare_char(lang, shuffle)
         model = build_sentence_rnn(real_vocab_number=2000, char_vocab_size=char_vocab_size, classes=2,
                                    attention=False, word=False, char=True, char_shape=False, highway='relu',
                                    nohighway=None)
@@ -1268,8 +1182,10 @@ if __name__ == "__main__":
     # print(output_array.shape)
     # test_fasttext()
     #
-    deformation_experiment_c()
-    deformation_experiment_j()
-
-    do_char_based_deformation_ex("CH")
-    do_char_based_deformation_ex("JP")
+    # deformation_experiment_c()
+    # deformation_experiment_j()
+    #
+    # do_char_based_deformation_ex("CH")
+    # do_char_based_deformation_ex("JP")
+    limited_dict_experiment("CH")
+    limited_dict_experiment("JP")
