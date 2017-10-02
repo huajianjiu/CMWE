@@ -6,7 +6,7 @@ from keras.models import Model
 from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
     Bidirectional, LSTM, Dense, Flatten, GRU, Lambda
 from keras.legacy.layers import Highway
-from keras.callbacks import ReduceLROnPlateau, EarlyStopping, CSVLogger, ModelCheckpoint
+from keras.callbacks import ReduceLROnPlateau, EarlyStopping, CSVLogger, ModelCheckpoint, TensorBoard
 from keras.utils.np_utils import to_categorical
 from keras.preprocessing.sequence import pad_sequences
 from attention import AttentionWithContext
@@ -101,8 +101,18 @@ def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, 
     scores = model.evaluate(x_test, y_test, verbose=0)
     print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
     print("%s: %.2f%%" % (model.metrics_names[2], scores[2] * 100))
+
+    predict_value(model, model_name, x_test)
+
     return result
 
+
+def predict_value(model, model_name, x_test):
+    model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy'], )
+    model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
+    predicted = model.predict(x_test, verbose=1)
+    with open(model_name+"_predict.data", "w") as f:
+        f.write(predicted)
 
 def get_vocab(shuffle=False):
     # convert kata to hira
@@ -1153,6 +1163,28 @@ def deformation_experiment_j():
     save_curve_data(results, "deformation_experiment_j.pickle")
 
 
+def visualize_embedding():
+    print("1")
+    (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
+     x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
+     x1_test, x2_test, x3_test, y_test) \
+        = prepare_rakuten_senti_classification(10000, skip_unk=False, shuffle=False)
+    print("2")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway=None,
+                               nohighway="linear",
+                               attention=True, shape_filter=True,
+                               char_filter=True)
+    model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy', "acc"], )
+    model.load_weights("checkpoints/Rakuten10000model4_bestloss.hdf5")
+    tensor_name = ["time_distributed_1"]
+    # tensor_name += next(filter(lambda x: x.name == 'embedding', model.layers)).W.name
+    tb_cb = TensorBoard(log_dir="./tflog/", histogram_freq=1, embeddings_freq=1, embeddings_layer_names=tensor_name)
+    stopper = EarlyStopping(monitor='val_loss', patience=10)
+    model.fit(x1_train, y_train, validation_data=(x1_val, y_val), epochs=30, batch_size=BATCH_SIZE,
+              callbacks=[tb_cb, stopper])
+
 if __name__ == "__main__":
     # Test Vocab
     # print(build_jp_embedding())
@@ -1187,5 +1219,7 @@ if __name__ == "__main__":
     #
     # do_char_based_deformation_ex("CH")
     # do_char_based_deformation_ex("JP")
-    limited_dict_experiment("CH")
-    limited_dict_experiment("JP")
+    # limited_dict_experiment("CH")
+    # limited_dict_experiment("JP")
+
+    visualize_embedding()
