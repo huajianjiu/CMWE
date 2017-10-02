@@ -111,8 +111,7 @@ def predict_value(model, model_name, x_test):
     model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy'], )
     model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
     predicted = model.predict(x_test, verbose=1)
-    with open(model_name+"_predict.data", "w") as f:
-        f.write(predicted)
+    numpy.savetxt(model_name+"_predict.data", predicted, fmt='%1.10f')
 
 def get_vocab(shuffle=False):
     # convert kata to hira
@@ -449,7 +448,7 @@ def split_data(data_shape, data_char, data_word, labels):
            x1_test, x2_test, x3_test, y_test
 
 
-def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_ba_6000/", dev_mode=False, skip_unk=False, shuffle=None):
+def prepare_ChnSenti_classification(filename="ChnSentiCorp_htl_unba_10000/", dev_mode=False, skip_unk=False, shuffle=None):
     # get vocab
     full_vocab, real_vocab_number, chara_bukken_revised, addtional_translate, hira_punc_number_latin = get_vocab()
     n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
@@ -1213,6 +1212,9 @@ if __name__ == "__main__":
     # output_array = model.predict([input1_array, input2_array])
     # print(output_array.shape)
     # test_fasttext()
+
+    do_ChnSenti_classification_multimodel("ChnSentiCorp_htl_unba_10000/")
+    do_rakuten_senti_classification_multimodel(datasize=10000)
     #
     # deformation_experiment_c()
     # deformation_experiment_j()
@@ -1222,4 +1224,4 @@ if __name__ == "__main__":
     # limited_dict_experiment("CH")
     # limited_dict_experiment("JP")
 
-    visualize_embedding()
+    # visualize_embedding()
