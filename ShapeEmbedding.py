@@ -616,11 +616,19 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=
 
     data_set_name = filename[:-1]
     if highway_options is None:
-        highway_options = [None, "linear", "relu"]
+        # highway_options = [None, "linear", "relu"]
+        highway_options = [None]
     if nohighway_options is None:
-        nohighway_options = [None, "linear", "relu"]
+        # nohighway_options = [None, "linear", "relu"]
+        nohighway_options = ["linear"]
     if attention_options is None:
-        attention_options = [False, True]
+        # attention_options = [False, True]
+        attention_options = [True]
+
+    result_shape = None
+    result_char = None
+    result_word = None
+
 
     if char_shape_only:
         for highway_option in highway_options:
@@ -637,7 +645,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=
                                                nohighway=nohighway_option,
                                                attention=attention_option, shape_filter=shape_filter,
                                                char_filter=char_filter)
-                    result = train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test,
+                    result_shape = train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test,
                                                   data_set_name + "model" + str(model_index))
 
     if char_only:
@@ -655,7 +663,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=
                                                cnn_encoder=cnn_encoder, highway=highway_option,
                                                nohighway=nohighway_option,
                                                shape_filter=shape_filter, char_filter=char_filter)
-                    train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test,
+                    result_char = train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test,
                                          data_set_name + "model" + str(model_index))
 
     if word_only:
@@ -673,7 +681,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=
                                                cnn_encoder=cnn_encoder, highway=highway_option,
                                                nohighway=nohighway_option,
                                                shape_filter=shape_filter, char_filter=char_filter)
-                    train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
+                    result_word = train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
                                          data_set_name + "model" + str(model_index))
 
     if hatt:
@@ -692,7 +700,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=
         model = build_fasttext(word_vocab_size, 2)
         train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
                              data_set_name + "model" + str(model_index))
-    return result
+    return result_shape, result_char, result_word
 
 
 def prepare_rakuten_senti_classification(datasize, skip_unk=False, shuffle=None):
@@ -865,11 +873,14 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
 
     data_set_name = "Rakuten" + str(datasize)
     if highway_options is None:
-        highway_options = [None, "linear", "relu"]
+        # highway_options = [None, "linear", "relu"]
+        highway_options = [None]
     if nohighway_options is None:
-        nohighway_options = [None, "linear", "relu"]
+        # nohighway_options = [None, "linear", "relu"]
+        nohighway_options = ["linear"]
     if attention_options is None:
-        attention_options = [False, True]
+        # attention_options = [False, True]
+        attention_options = [True]
 
     result = None
 
@@ -1214,7 +1225,7 @@ if __name__ == "__main__":
     # test_fasttext()
 
     do_ChnSenti_classification_multimodel("ChnSentiCorp_htl_unba_10000/")
-    do_rakuten_senti_classification_multimodel(datasize=10000)
+    # do_rakuten_senti_classification_multimodel(datasize=10000)
     #
     # deformation_experiment_c()
     # deformation_experiment_j()
