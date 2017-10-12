@@ -646,7 +646,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=
                                                attention=attention_option, shape_filter=shape_filter,
                                                char_filter=char_filter)
                     result_shape = train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test,
-                                                  data_set_name + "model" + str(model_index))
+                                                  data_set_name + "model" + str(model_index) + "_radical")
 
     if char_only:
         for highway_option in highway_options:
@@ -664,7 +664,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=
                                                nohighway=nohighway_option,
                                                shape_filter=shape_filter, char_filter=char_filter)
                     result_char = train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test,
-                                         data_set_name + "model" + str(model_index))
+                                         data_set_name + "model" + str(model_index) + "_char")
 
     if word_only:
         for highway_option in highway_options:
@@ -682,7 +682,7 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=
                                                nohighway=nohighway_option,
                                                shape_filter=shape_filter, char_filter=char_filter)
                     result_word = train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
-                                         data_set_name + "model" + str(model_index))
+                                         data_set_name + "model" + str(model_index) + "_word")
 
     if hatt:
         model_index += 1
@@ -692,14 +692,14 @@ def do_ChnSenti_classification_multimodel(filename, dev_mode=False, cnn_encoder=
         _x_test = numpy.reshape(x2_test, (x2_test.shape[0], 5, 100))
         model = build_hatt(word_vocab_size, 2)
         train_and_test_model(model, _x_train, y_train, _x_val, y_val, _x_test, y_test,
-                             data_set_name + "model" + str(model_index))
+                             data_set_name + "model" + str(model_index) + "_hatt")
 
     if fasttext:
         model_index += 1
         print("MODEL: 16 fastText")
         model = build_fasttext(word_vocab_size, 2)
         train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
-                             data_set_name + "model" + str(model_index))
+                             data_set_name + "model" + str(model_index) + "_fasttext")
     return result_shape, result_char, result_word
 
 
@@ -852,7 +852,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
              x1_test, x2_test, x3_test, y_test) \
                 = prepare_rakuten_senti_classification(datasize, skip_unk=skip_unk, shuffle=shuffle)
-            with open("Rakuten" + str(datasize) + ".pickle", "wb") as f:
+            with open(picklename, "wb") as f:
                 pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
                              x1_train, x2_train, x3_train, y_train, x1_val, x2_val, x3_val, y_val,
                              x1_test, x2_test, x3_test, y_test), f)
@@ -900,7 +900,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
                                                attention=attention_option, shape_filter=shape_filter,
                                                char_filter=char_filter)
                     result = train_and_test_model(model, x1_train, y_train, x1_val, y_val, x1_test, y_test,
-                                                  data_set_name + "model" + str(model_index))
+                                                  data_set_name + "model" + str(model_index) + "_radical")
 
     if char_only:
         for highway_option in highway_options:
@@ -918,7 +918,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
                                                nohighway=nohighway_option,
                                                shape_filter=shape_filter, char_filter=char_filter)
                     train_and_test_model(model, x3_train, y_train, x3_val, y_val, x3_test, y_test,
-                                         data_set_name + "model" + str(model_index))
+                                         data_set_name + "model" + str(model_index) + "_char")
 
     if word_only:
         for highway_option in highway_options:
@@ -936,7 +936,7 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
                                                nohighway=nohighway_option,
                                                shape_filter=shape_filter, char_filter=char_filter)
                     train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
-                                         data_set_name + "model" + str(model_index))
+                                         data_set_name + "model" + str(model_index) + "_word")
 
     if hatt:
         model_index += 1
@@ -946,14 +946,14 @@ def do_rakuten_senti_classification_multimodel(datasize, attention=False, cnn_en
         _x_test = numpy.reshape(x2_test, (x2_test.shape[0], 5, 100))
         model = build_hatt(word_vocab_size, 2)
         train_and_test_model(model, _x_train, y_train, _x_val, y_val, _x_test, y_test,
-                             data_set_name + "model" + str(model_index))
+                             data_set_name + "model" + str(model_index) + "_hatt")
 
     if fasttext:
         model_index += 1
         print("MODEL: 16 fastText")
         model = build_fasttext(word_vocab_size, 2)
         train_and_test_model(model, x2_train, y_train, x2_val, y_val, x2_test, y_test,
-                             data_set_name + "model" + str(model_index))
+                             data_set_name + "model" + str(model_index) + "_fasttext")
     return result
 
 
@@ -1224,8 +1224,8 @@ if __name__ == "__main__":
     # print(output_array.shape)
     # test_fasttext()
 
-    do_ChnSenti_classification_multimodel("ChnSentiCorp_htl_unba_10000/")
-    # do_rakuten_senti_classification_multimodel(datasize=10000)
+    # do_ChnSenti_classification_multimodel("ChnSentiCorp_htl_unba_10000/")
+    do_rakuten_senti_classification_multimodel(datasize=10000)
     #
     # deformation_experiment_c()
     # deformation_experiment_j()
