@@ -111,7 +111,7 @@ def predict_value(model, model_name, x_test):
     model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy'], )
     model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
     predicted = model.predict(x_test, verbose=1)
-    numpy.savetxt(model_name+"_predict.data", predicted, fmt='%1.10f')
+    numpy.savetxt(model_name+"_predict.csv", predicted, fmt='%1.10f')
 
 def get_vocab(shuffle=False):
     # convert kata to hira
