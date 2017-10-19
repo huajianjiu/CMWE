@@ -1224,7 +1224,7 @@ if __name__ == "__main__":
     # print(output_array.shape)
     # test_fasttext()
 
-    # do_ChnSenti_classification_multimodel("ChnSentiCorp_htl_unba_10000/")
+    do_ChnSenti_classification_multimodel("ChnSentiCorp_htl_unba_10000/")
     do_rakuten_senti_classification_multimodel(datasize=10000)
     #
     # deformation_experiment_c()
