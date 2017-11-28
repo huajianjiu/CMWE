@@ -1,7 +1,7 @@
 import re, string, pickle, numpy, mojimoji, datetime, os, sys
 
 REVIEW_DIR = '/media/yuanzhike/D4B8C1ADB8C18E84/楽天データ/ichiba/review/'
-SIZE_LIMIT = 100*1000
+SIZE_LIMIT = 100*10000
 positive = []
 negative = []
 
