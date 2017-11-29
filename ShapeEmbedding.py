@@ -756,16 +756,21 @@ def prepare_rakuten_senti_classification(datasize, skip_unk=False, shuffle=None)
                 break
             if janome:
                 word = mrph.surface
-                word_genkei = mrph.base_form
+                # word_genkei = mrph.base_form
             else:
                 word = mrph.midasi
-                word_genkei = mrph.genkei
+                # word_genkei = mrph.genkei
             # word level
-            if word_genkei not in word_vocab:
-                word_vocab.append(word_genkei)
+            # if word_genkei not in word_vocab:
+            #     word_vocab.append(word_genkei)
+            #     word_index = len(word_vocab) - 1
+            # else:
+            #     word_index = word_vocab.index(word_genkei)
+            if word not in word_vocab:
+                word_vocab.append(word)
                 word_index = len(word_vocab) - 1
             else:
-                word_index = word_vocab.index(word_genkei)
+                word_index = word_vocab.index(word)
             data_word[i, j] = word_index
             # single char gram level
             # convert digital number and latin to hangaku
