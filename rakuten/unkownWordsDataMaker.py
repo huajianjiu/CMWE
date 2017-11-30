@@ -126,7 +126,7 @@ file_list = sorted(os.listdir(REVIEW_DIR))
 random.shuffle(file_list)
 private_file_count = 0
 
-for fname in enumerate(tqdm(file_list)):
+for fname in tqdm(file_list):
     fpath = os.path.join(REVIEW_DIR, fname)
     review_count = 0
     # print(fpath)
