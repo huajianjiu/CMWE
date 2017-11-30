@@ -15,19 +15,26 @@ TEST_SIZE_LIMIT = 10000
 janome_tokenizer = JanomeTokenizer()
 
 
-def read_one_file(fpath):
+def read_one_file(fpath, type, count, set_d):
     with open(fpath) as f:
         for line in f.readlines():
             rank = int(line.split("\t")[13])
             review_text = line.split("\t")[15]
+            print("Rank: ", rank, " Text: ", review_text[:20], "...")
             # print(rank, review_text)
             if rank >= 3:
                 label = 1
             elif rank < 3:
                 label = 0
+            if type == "unk_w":
+                result = parse_text_for_unk_w(review_text, label, set_d)
+            elif type == "unk_c":
+                result = parse_text_for_unk_c(review_text, label, set_d)
             else:
-                continue  # discard the middle ranks to avoid ambiguous texts
-    return review_text, label
+                result = parse_text(review_text, label, set_d)
+            if result:
+                count += 1
+    return count
 
 
 def parse_text(text, label, set_d):
@@ -119,31 +126,35 @@ file_list = sorted(os.listdir(REVIEW_DIR))
 random.shuffle(file_list)
 private_file_count = 0
 
-for file_count, fname in enumerate(tqdm(file_list)):
+for fname in enumerate(tqdm(file_list)):
     fpath = os.path.join(REVIEW_DIR, fname)
+    review_count = 0
     # print(fpath)
-    if file_count < TRAIN_SIZE_LIMIT:
+    if review_count < TRAIN_SIZE_LIMIT:
+        print("Training set")
         # obtain trainning_data:
-        review_text, label = read_one_file(fpath)
-        parse_text(review_text, label, train_set)
-    elif file_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT:
+        review_count = read_one_file(fpath, "train", review_count, train_set)
+    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT:
+        print("Tuning set")
         # obtian tuning data:
-        review_text, label = read_one_file(fpath)
-        parse_text(review_text, label, tune_set)
-    elif file_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT:
+        review_count = read_one_file(fpath, "tune", review_count, tune_set)
+    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT:
+        print("Validation set")
         # obtain val data:
-        review_text, label = read_one_file(fpath)
-        parse_text(review_text, label, validation_set)
-    elif file_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + TEST_SIZE_LIMIT:
+        review_count = read_one_file(fpath, "validation", review_count, validation_set)
+    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + TEST_SIZE_LIMIT:
+        print("Normal Test set")
         # obtain normal test data:
-        review_text, label = read_one_file(fpath)
-        parse_text(review_text, label, test_normal_set)
-    elif file_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 2 * TEST_SIZE_LIMIT:
+        review_count = read_one_file(fpath, "test", review_count, test_normal_set)
+    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 2 * TEST_SIZE_LIMIT:
+        print("UNK W Test set")
         # obtain 100% unkown word test data (at least one unkown word in each sentence):
-        pass
-    elif file_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 2 * TEST_SIZE_LIMIT:
+        review_count = read_one_file(fpath, "unk_w", review_count, test_unk_w_set)
+    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 3 * TEST_SIZE_LIMIT:
+        print("UNK C Test set")
         # obtain 100% unkown Chinese character test data (at least one character word in each sentence):
-        pass
+        review_count = read_one_file(fpath, "unk_c", review_count, test_unk_c_set)
+    print("Count: ", review_count)
 
 with open("rakuten_review_split.pickle", "wb") as f:
     pickle.dump((train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set), f)
