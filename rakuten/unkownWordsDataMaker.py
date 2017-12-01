@@ -4,8 +4,8 @@ from tqdm import tqdm
 import random
 
 REVIEW_DIR = '/media/yuanzhike/D4B8C1ADB8C18E84/楽天データ/ichiba/review/'
-TRAIN_SIZE_LIMIT = 80 * 10000
-TUNE_SIZE_LIMIT = 10 * 10000
+TRAIN_SIZE_LIMIT = 80000
+TUNE_SIZE_LIMIT = 10000
 VALIDATION_SIZE_LIMIT = 10000
 TEST_SIZE_LIMIT = 10000
 
@@ -20,7 +20,7 @@ def read_one_file(fpath, type, count, set_d):
         for line in f.readlines():
             rank = int(line.split("\t")[13])
             review_text = line.split("\t")[15]
-            print("Rank: ", rank, " Text: ", review_text[:20], "...")
+            # print("Rank: ", rank, " Text: ", review_text[:20], "...")
             # print(rank, review_text)
             if rank >= 3:
                 label = 1
@@ -38,7 +38,10 @@ def read_one_file(fpath, type, count, set_d):
 
 
 def parse_text(text, label, set_d):
-    parse_tokens = janome_tokenizer.tokenize(text)
+    try:
+        parse_tokens = janome_tokenizer.tokenize(text)
+    except:
+        return False
     for token in parse_tokens:
         word = token.surface
         if word not in set_d["word_vocab"]:
@@ -60,7 +63,10 @@ def parse_text_for_unk_w(text, label, set_d, vocabulary):
     ok_flag = False
     words = []
     characters = []
-    parse_tokens = janome_tokenizer.tokenize(text)
+    try:
+        parse_tokens = janome_tokenizer.tokenize(text)
+    except:
+        return False
     for token in parse_tokens:
         word = token.surface
         if word not in words:
@@ -89,7 +95,10 @@ def parse_text_for_unk_c(text, label, set_d, vocabulary):
     ok_flag = False
     words = []
     characters = []
-    parse_tokens = janome_tokenizer.tokenize(text)
+    try:
+        parse_tokens = janome_tokenizer.tokenize(text)
+    except:
+        return False
     for token in parse_tokens:
         word = token.surface
         if word not in words:
@@ -154,6 +163,8 @@ for fname in tqdm(file_list):
         print("UNK C Test set")
         # obtain 100% unkown Chinese character test data (at least one character word in each sentence):
         review_count = read_one_file(fpath, "unk_c", review_count, test_unk_c_set)
+    else:
+        break
     print("Count: ", review_count)
 
 with open("rakuten_review_split.pickle", "wb") as f:
