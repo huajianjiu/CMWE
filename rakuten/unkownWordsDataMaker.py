@@ -15,9 +15,11 @@ TEST_SIZE_LIMIT = 10000
 janome_tokenizer = JanomeTokenizer()
 
 
-def read_one_file(fpath, type, count, set_d):
+def read_one_file(fpath, type, count, set_d, limit):
     with open(fpath) as f:
         for line in f.readlines():
+            if count > limit:
+                break
             rank = int(line.split("\t")[13])
             review_text = line.split("\t")[15]
             # print("Rank: ", rank, " Text: ", review_text[:20], "...")
@@ -135,37 +137,38 @@ file_list = sorted(os.listdir(REVIEW_DIR))
 random.shuffle(file_list)
 private_file_count = 0
 
+review_count = 0
+
 for fname in tqdm(file_list):
     fpath = os.path.join(REVIEW_DIR, fname)
-    review_count = 0
     # print(fpath)
+    print("Count: ", review_count)
     if review_count < TRAIN_SIZE_LIMIT:
         print("Training set")
         # obtain trainning_data:
-        review_count = read_one_file(fpath, "train", review_count, train_set)
+        review_count = read_one_file(fpath, "train", review_count, train_set, TRAIN_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT:
         print("Tuning set")
         # obtian tuning data:
-        review_count = read_one_file(fpath, "tune", review_count, tune_set)
+        review_count = read_one_file(fpath, "tune", review_count, tune_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT:
         print("Validation set")
         # obtain val data:
-        review_count = read_one_file(fpath, "validation", review_count, validation_set)
+        review_count = read_one_file(fpath, "validation", review_count, validation_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + TEST_SIZE_LIMIT:
         print("Normal Test set")
         # obtain normal test data:
-        review_count = read_one_file(fpath, "test", review_count, test_normal_set)
+        review_count = read_one_file(fpath, "test", review_count, test_normal_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + TEST_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 2 * TEST_SIZE_LIMIT:
         print("UNK W Test set")
         # obtain 100% unkown word test data (at least one unkown word in each sentence):
-        review_count = read_one_file(fpath, "unk_w", review_count, test_unk_w_set)
+        review_count = read_one_file(fpath, "unk_w", review_count, test_unk_w_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 2 * TEST_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 3 * TEST_SIZE_LIMIT:
         print("UNK C Test set")
         # obtain 100% unkown Chinese character test data (at least one character word in each sentence):
-        review_count = read_one_file(fpath, "unk_c", review_count, test_unk_c_set)
+        review_count = read_one_file(fpath, "unk_c", review_count, test_unk_c_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 3 * TEST_SIZE_LIMIT)
     else:
         break
-    print("Count: ", review_count)
 
 with open("rakuten_review_split.pickle", "wb") as f:
     pickle.dump((train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set), f)
