@@ -61,7 +61,9 @@ def parse_text(text, label, set_d):
     return True
 
 
-def parse_text_for_unk_w(text, label, set_d, vocabulary):
+def parse_text_for_unk_w(text, label, set_d, vocabulary=None):
+    if not vocabulary:
+        vocabulary = train_set["word_vocab"]
     ok_flag = False
     words = []
     characters = []
@@ -93,7 +95,9 @@ def parse_text_for_unk_w(text, label, set_d, vocabulary):
         return False
 
 
-def parse_text_for_unk_c(text, label, set_d, vocabulary):
+def parse_text_for_unk_c(text, label, set_d, vocabulary=None):
+    if not vocabulary:
+        vocabulary = train_set["character_vocab"]
     ok_flag = False
     words = []
     characters = []
