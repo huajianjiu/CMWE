@@ -6,10 +6,11 @@ from tqdm import tqdm
 import random
 
 REVIEW_DIR = '/media/yuanzhike/D4B8C1ADB8C18E84/楽天データ/ichiba/review/'
-TRAIN_SIZE_LIMIT = 80000 # half, number of positive/negative
-TUNE_SIZE_LIMIT = 10000
-VALIDATION_SIZE_LIMIT = 10000
-TEST_SIZE_LIMIT = 10000
+TRAIN_SIZE_LIMIT = 10000 # half, number of positive/negative
+TUNE_SIZE_LIMIT = 1000
+VALIDATION_SIZE_LIMIT = 1000
+TEST_SIZE_LIMIT = 1000
+# 2017 12 4: very little negative samples -> reduce the data number to get balanced dataset
 
 # TODO: GET THE WORD VOCABULARY AND CHARACTER VOCABULARY of TRAIN SET
 # TODO: TEST SET of DIFFERENT UNKOWN WORD/CHARACTER PERCENTAGE
@@ -22,6 +23,8 @@ def read_one_file(fpath, type, set_d, limit):
     n_count = 0
     with open(fpath) as f:
         for line in f.readlines():
+            if (p_count + n_count) % 1000 == 0:
+                print (p_count, n_count)
             if p_count >= limit and n_count >= limit:
                 break
             rank = int(line.split("\t")[13])
