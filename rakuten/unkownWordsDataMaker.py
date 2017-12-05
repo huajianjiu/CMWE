@@ -158,27 +158,27 @@ for fname in tqdm(file_list):
     fpath = os.path.join(REVIEW_DIR, fname)
     # print(fpath)
     print("Count: ", review_count)
-    if review_count < TRAIN_SIZE_LIMIT:
+    if review_count < 2 * TRAIN_SIZE_LIMIT:
         print("Training set")
         # obtain trainning_data:
         review_count += read_one_file(fpath, "train", train_set, TRAIN_SIZE_LIMIT)
-    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT:
+    elif review_count < 2 * (TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT):
         print("Tuning set")
         # obtian tuning data:
         review_count += read_one_file(fpath, "tune", tune_set, TUNE_SIZE_LIMIT)
-    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT:
+    elif review_count < 2 * (TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT):
         print("Validation set")
         # obtain val data:
         review_count += read_one_file(fpath, "validation", validation_set, VALIDATION_SIZE_LIMIT)
-    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + TEST_SIZE_LIMIT:
+    elif review_count < 2 * (TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + TEST_SIZE_LIMIT):
         print("Normal Test set")
         # obtain normal test data:
         review_count += read_one_file(fpath, "test", test_normal_set, TEST_SIZE_LIMIT)
-    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 2 * TEST_SIZE_LIMIT:
+    elif review_count < 2 * (TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 2 * TEST_SIZE_LIMIT):
         print("UNK W Test set")
         # obtain 100% unkown word test data (at least one unkown word in each sentence):
         review_count += read_one_file(fpath, "unk_w", test_unk_w_set, TEST_SIZE_LIMIT)
-    elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 3 * TEST_SIZE_LIMIT:
+    elif review_count < 2 * (TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 3 * TEST_SIZE_LIMIT):
         print("UNK C Test set")
         # obtain 100% unkown Chinese character test data (at least one character word in each sentence):
         review_count += read_one_file(fpath, "unk_c", test_unk_c_set, TEST_SIZE_LIMIT)
