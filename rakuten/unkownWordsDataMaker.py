@@ -1,10 +1,12 @@
+# generate balanced p/n review dataset of Training, Tuning, Validation, Test, UNKTest
+
 import pickle, os
 from janome.tokenizer import Tokenizer as JanomeTokenizer
 from tqdm import tqdm
 import random
 
 REVIEW_DIR = '/media/yuanzhike/D4B8C1ADB8C18E84/楽天データ/ichiba/review/'
-TRAIN_SIZE_LIMIT = 80000
+TRAIN_SIZE_LIMIT = 80000 # half, number of positive/negative
 TUNE_SIZE_LIMIT = 10000
 VALIDATION_SIZE_LIMIT = 10000
 TEST_SIZE_LIMIT = 10000
@@ -15,28 +17,34 @@ TEST_SIZE_LIMIT = 10000
 janome_tokenizer = JanomeTokenizer()
 
 
-def read_one_file(fpath, type, count, set_d, limit):
+def read_one_file(fpath, type, set_d, limit):
+    p_count = 0
+    n_count = 0
     with open(fpath) as f:
         for line in f.readlines():
-            if count > limit:
+            if p_count >= limit and n_count >= limit:
                 break
             rank = int(line.split("\t")[13])
             review_text = line.split("\t")[15]
             # print("Rank: ", rank, " Text: ", review_text[:20], "...")
             # print(rank, review_text)
-            if rank >= 3:
+            if rank >= 3 and p_count < limit:
                 label = 1
-            elif rank < 3:
+            elif rank < 3 and n_count < limit:
                 label = 0
+            else:
+                continue
             if type == "unk_w":
                 result = parse_text_for_unk_w(review_text, label, set_d)
             elif type == "unk_c":
                 result = parse_text_for_unk_c(review_text, label, set_d)
             else:
                 result = parse_text(review_text, label, set_d)
-            if result:
-                count += 1
-    return count
+            if result and label == 1:
+                p_count += 1
+            elif result and label == 0:
+                n_count += 1
+    return p_count + n_count
 
 
 def parse_text(text, label, set_d):
@@ -150,27 +158,27 @@ for fname in tqdm(file_list):
     if review_count < TRAIN_SIZE_LIMIT:
         print("Training set")
         # obtain trainning_data:
-        review_count = read_one_file(fpath, "train", review_count, train_set, TRAIN_SIZE_LIMIT)
+        review_count += read_one_file(fpath, "train", train_set, TRAIN_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT:
         print("Tuning set")
         # obtian tuning data:
-        review_count = read_one_file(fpath, "tune", review_count, tune_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT)
+        review_count += read_one_file(fpath, "tune", tune_set, TUNE_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT:
         print("Validation set")
         # obtain val data:
-        review_count = read_one_file(fpath, "validation", review_count, validation_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT)
+        review_count += read_one_file(fpath, "validation", validation_set, VALIDATION_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + TEST_SIZE_LIMIT:
         print("Normal Test set")
         # obtain normal test data:
-        review_count = read_one_file(fpath, "test", review_count, test_normal_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + TEST_SIZE_LIMIT)
+        review_count += read_one_file(fpath, "test", test_normal_set, TEST_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 2 * TEST_SIZE_LIMIT:
         print("UNK W Test set")
         # obtain 100% unkown word test data (at least one unkown word in each sentence):
-        review_count = read_one_file(fpath, "unk_w", review_count, test_unk_w_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 2 * TEST_SIZE_LIMIT)
+        review_count += read_one_file(fpath, "unk_w", test_unk_w_set, TEST_SIZE_LIMIT)
     elif review_count < TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 3 * TEST_SIZE_LIMIT:
         print("UNK C Test set")
         # obtain 100% unkown Chinese character test data (at least one character word in each sentence):
-        review_count = read_one_file(fpath, "unk_c", review_count, test_unk_c_set, TRAIN_SIZE_LIMIT + TUNE_SIZE_LIMIT + VALIDATION_SIZE_LIMIT + 3 * TEST_SIZE_LIMIT)
+        review_count += read_one_file(fpath, "unk_c", test_unk_c_set, TEST_SIZE_LIMIT)
     else:
         break
 
