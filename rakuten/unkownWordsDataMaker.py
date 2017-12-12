@@ -21,11 +21,13 @@ janome_tokenizer = JanomeTokenizer()
 def read_one_file(fpath, type, set_d, limit):
     p_count = 0
     n_count = 0
+    p_limit = limit - len(set_d["positive"])
+    n_limit = limit - len(set_d["negative"])
     with open(fpath) as f:
         for line in f.readlines():
             if (p_count + n_count) % 1000 == 0:
                 print (p_count, n_count)
-            if p_count >= limit and n_count >= limit:
+            if p_count >= p_limit and n_count >= n_limit:
                 break
             rank = int(line.split("\t")[13])
             review_text = line.split("\t")[15]
@@ -92,8 +94,8 @@ def parse_text_for_unk_w(text, label, set_d, vocabulary=None):
         if character not in characters:
             characters.append(character)
     if ok_flag:
-        set_d["word_vocab"] = words
-        set_d["character_vocab"] = characters
+        set_d["word_vocab"] += words
+        set_d["character_vocab"] += characters
         if label == 0:
             set_d["negative"].append(text)
         elif label == 1:
@@ -126,8 +128,8 @@ def parse_text_for_unk_c(text, label, set_d, vocabulary=None):
         if character not in vocabulary:
             ok_flag = True
     if ok_flag:
-        set_d["word_vocab"] = words
-        set_d["character_vocab"] = characters
+        set_d["word_vocab"] += words
+        set_d["character_vocab"] += characters
         if label == 0:
             set_d["negative"].append(text)
         elif label == 1:
