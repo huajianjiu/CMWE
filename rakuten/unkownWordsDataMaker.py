@@ -86,12 +86,12 @@ def parse_text_for_unk_w(text, label, set_d, vocabulary=None):
         return False
     for token in parse_tokens:
         word = token.surface
-        if word not in words:
+        if (word not in words) and (word not in set_d["word_vocab"]):
             words.append(word)
         if word not in vocabulary:
             ok_flag = True
     for character in text:
-        if character not in characters:
+        if (character not in characters) and (character not in set_d["character_vocab"]):
             characters.append(character)
     if ok_flag:
         set_d["word_vocab"] += words
@@ -120,10 +120,10 @@ def parse_text_for_unk_c(text, label, set_d, vocabulary=None):
         return False
     for token in parse_tokens:
         word = token.surface
-        if word not in words:
+        if (word not in words) and (word not in set_d["word_vocab"]):
             words.append(word)
     for character in text:
-        if character not in characters:
+        if (character not in characters) and (character not in set_d["character_vocab"]):
             characters.append(character)
         if character not in vocabulary:
             ok_flag = True
