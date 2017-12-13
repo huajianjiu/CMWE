@@ -1177,7 +1177,6 @@ def deformation_experiment_j():
     plot_results(results, "rakuten_10k")
     save_curve_data(results, "deformation_experiment_j.pickle")
 
-
 def visualize_embedding():
     print("1")
     (full_vocab, real_vocab_number, chara_bukken_revised, word_vocab, char_vocab,
