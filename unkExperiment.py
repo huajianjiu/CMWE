@@ -44,7 +44,7 @@ def shuffle_data_one_set(data_shape, data_char, data_word, labels):
 
 
 def prepare_set_j(s, full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin,
-                  word_vocab, char_vocab, janome_tokenizer):
+                  preprocessed_char_number, word_vocab, char_vocab, janome_tokenizer):
     n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
     positive = s["positive"]
     negative = s["negative"]
@@ -53,7 +53,6 @@ def prepare_set_j(s, full_vocab, real_vocab_number, chara_bukken_revised, additi
     data_shape = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype=numpy.int32)
     data_char = numpy.zeros((data_size, MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype=numpy.int32)
     data_word = numpy.zeros((data_size, MAX_SENTENCE_LENGTH), dtype=numpy.int32)
-    preprocessed_char_number = len(full_vocab)
     for i, text in enumerate(tqdm(positive + negative)):
         # 日语分词
         janome = True
@@ -119,13 +118,14 @@ def unk_experiment_j():
 
     janome_tokenizer = JanomeTokenizer()
     full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin = get_vocab()
+    preprocessed_char_number = len(full_vocab)
     word_vocab = ["</s>"]
     char_vocab = ["</s>"] + get_all_character()
 
     print_vocab_size(full_vocab, word_vocab, char_vocab)
     x_s_train, x_c_train, x_w_train, y_train = prepare_set_j(train_set, full_vocab, real_vocab_number,
                                                              chara_bukken_revised, additional_translate,
-                                                             hira_punc_number_latin,
+                                                             hira_punc_number_latin, preprocessed_char_number,
                                                              word_vocab, char_vocab, janome_tokenizer)
     print_vocab_size(full_vocab, word_vocab, char_vocab)
     x_s_validation, x_c_validation, x_w_validation, y_validation = prepare_set_j(validation_set, full_vocab,
@@ -133,6 +133,7 @@ def unk_experiment_j():
                                                                                  chara_bukken_revised,
                                                                                  additional_translate,
                                                                                  hira_punc_number_latin,
+                                                                                 preprocessed_char_number,
                                                                                  word_vocab, char_vocab,
                                                                                  janome_tokenizer)
     print_vocab_size(full_vocab, word_vocab, char_vocab)
@@ -141,6 +142,7 @@ def unk_experiment_j():
                                                                                      chara_bukken_revised,
                                                                                      additional_translate,
                                                                                      hira_punc_number_latin,
+                                                                                     preprocessed_char_number,
                                                                                      word_vocab, char_vocab,
                                                                                      janome_tokenizer)
     print_vocab_size(full_vocab, word_vocab, char_vocab)
