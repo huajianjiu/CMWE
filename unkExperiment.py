@@ -16,7 +16,7 @@ from plot_results import plot_results, save_curve_data
 from dataReader import prepare_char, prepare_word, shuffle_kv
 
 from ShapeEmbedding import build_fasttext, build_hatt, build_sentence_rnn, build_word_feature_char, \
-    build_word_feature_shape, text_to_char_index, get_vocab, _make_kana_convertor
+    build_word_feature_shape, text_to_char_index, get_vocab, _make_kana_convertor, train_model, test_model
 
 # MAX_SENTENCE_LENGTH = 739  # large number as 739 makes cudnn die
 MAX_SENTENCE_LENGTH = 500
@@ -163,6 +163,79 @@ def unk_experiment_j():
                                                                                      preprocessed_char_number,
                                                                                      word_vocab, char_vocab,
                                                                                      janome_tokenizer)
+    word_vocab_size = len(word_vocab)
+    char_vocab_size = len(char_vocab)
+    num_class = 2
+    data_set_name = "Rakuten_UNK"
+
+    model_name = "Radical-CNN-RNN"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway=None, nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=True)
+    print("Train")
+    train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
+
+    model_name = "CHAR-CNN-RNN"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
+                               char_shape=False, word=False, char=True,
+                               cnn_encoder=True, highway=None, nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=True)
+    print("Train")
+    train_model(model, x_c_train, y_train, x_c_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_c_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_c_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_c_test_unk_c, y_test_unk_c, path="unk_exp/")
+
+    model_name = "WORD-RNN"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
+                               char_shape=False, word=True, char=False,
+                               cnn_encoder=True, highway=None, nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=True)
+    print("Train")
+    train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
+
+    model_name = "WORD-HATT"
+    print("======MODEL: ", model_name, "======")
+    model = build_hatt(word_vocab_size, 2)
+    print("Train")
+    train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
+
+    model_name = "WORD-FASTTEXT"
+    print("======MODEL: ", model_name, "======")
+    model = build_fasttext(word_vocab_size, 2)
+    print("Train")
+    train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
 
 
 if __name__ == "__main__":

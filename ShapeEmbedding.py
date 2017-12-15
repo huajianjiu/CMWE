@@ -79,13 +79,22 @@ def load_shape_data(datafile="usc-shape_bukken_data.pickle"):
 
 
 
-def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=False):
+#TODO: output hidden layers
+def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=True, path=""):
     # model = to_multi_gpu(model)
     print(model_name)
+    result = train_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop, path)
+    model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
+    test_model(model, model_name, x_test, y_test, path)
+    predict_value(model, model_name, x_test)
+    return result
+
+
+def train_model(model, x_train, y_train, x_val, y_val, model_name, early_stop=True, path=""):
     reducelr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5)
     if early_stop:
         stopper = EarlyStopping(monitor='val_loss', patience=10)
-    checkpoint_loss = ModelCheckpoint(filepath="checkpoints/" + model_name + "_bestloss.hdf5", monitor="val_loss",
+    checkpoint_loss = ModelCheckpoint(filepath=path + "checkpoints/" + model_name + "_bestloss.hdf5", monitor="val_loss",
                                       verbose=VERBOSE, save_best_only=True, mode="min")
     print("compling...")
     model.compile(loss="categorical_crossentropy", optimizer="rmsprop", metrics=['categorical_crossentropy', "acc"], )
@@ -96,15 +105,15 @@ def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, 
     else:
         result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=VERBOSE,
                            epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[reducelr, checkpoint_loss])
-    model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
+    return result
+
+
+def test_model(model, model_name, x_test, y_test, path=""):
+    model.load_weights(path + "checkpoints/" + model_name + "_bestloss.hdf5")
     print("testing...")
     scores = model.evaluate(x_test, y_test, verbose=0)
     print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
     print("%s: %.2f%%" % (model.metrics_names[2], scores[2] * 100))
-
-    predict_value(model, model_name, x_test)
-
-    return result
 
 
 def predict_value(model, model_name, x_test):
