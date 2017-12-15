@@ -146,9 +146,23 @@ def unk_experiment_j():
                                                                                      word_vocab, char_vocab,
                                                                                      janome_tokenizer)
     print_vocab_size(full_vocab, word_vocab, char_vocab)
-    x_s_test_unk_w, x_c_test_unk_w, x_w_test_unk_w, y_test_unk_w = prepare_set_j(test_unk_w_set)
+    x_s_test_unk_w, x_c_test_unk_w, x_w_test_unk_w, y_test_unk_w = prepare_set_j(test_unk_w_set, full_vocab,
+                                                                                     real_vocab_number,
+                                                                                     chara_bukken_revised,
+                                                                                     additional_translate,
+                                                                                     hira_punc_number_latin,
+                                                                                     preprocessed_char_number,
+                                                                                     word_vocab, char_vocab,
+                                                                                     janome_tokenizer)
     print_vocab_size(full_vocab, word_vocab, char_vocab)
-    x_s_test_unk_c, x_c_test_unk_c, x_w_test_unk_c, y_test_unk_c = prepare_set_j(test_unk_c_set)
+    x_s_test_unk_c, x_c_test_unk_c, x_w_test_unk_c, y_test_unk_c = prepare_set_j(test_unk_c_set, full_vocab,
+                                                                                     real_vocab_number,
+                                                                                     chara_bukken_revised,
+                                                                                     additional_translate,
+                                                                                     hira_punc_number_latin,
+                                                                                     preprocessed_char_number,
+                                                                                     word_vocab, char_vocab,
+                                                                                     janome_tokenizer)
 
 
 if __name__ == "__main__":
