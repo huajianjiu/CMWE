@@ -108,11 +108,13 @@ def prepare_set_j(s, full_vocab, real_vocab_number, chara_bukken_revised, additi
     x_shape, x_char, x_word, y = shuffle_data_one_set(data_shape, data_char, data_word, labels)
     return x_shape, x_char, x_word, y
 
+
 def print_vocab_size(full_vocab, word_vocab, char_vocab):
     print("full_vocab\tword_vocab\tchar_vocab")
     print(len(full_vocab), "\t", len(word_vocab), "\t", len(char_vocab))
 
-def unk_experiment_j():
+
+def unk_exp_preproces_j():
     train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set \
         = pickle.load(open("rakuten/rakuten_review_split.pickle", "rb"))
 
@@ -147,22 +149,41 @@ def unk_experiment_j():
                                                                                      janome_tokenizer)
     print_vocab_size(full_vocab, word_vocab, char_vocab)
     x_s_test_unk_w, x_c_test_unk_w, x_w_test_unk_w, y_test_unk_w = prepare_set_j(test_unk_w_set, full_vocab,
-                                                                                     real_vocab_number,
-                                                                                     chara_bukken_revised,
-                                                                                     additional_translate,
-                                                                                     hira_punc_number_latin,
-                                                                                     preprocessed_char_number,
-                                                                                     word_vocab, char_vocab,
-                                                                                     janome_tokenizer)
+                                                                                 real_vocab_number,
+                                                                                 chara_bukken_revised,
+                                                                                 additional_translate,
+                                                                                 hira_punc_number_latin,
+                                                                                 preprocessed_char_number,
+                                                                                 word_vocab, char_vocab,
+                                                                                 janome_tokenizer)
     print_vocab_size(full_vocab, word_vocab, char_vocab)
     x_s_test_unk_c, x_c_test_unk_c, x_w_test_unk_c, y_test_unk_c = prepare_set_j(test_unk_c_set, full_vocab,
-                                                                                     real_vocab_number,
-                                                                                     chara_bukken_revised,
-                                                                                     additional_translate,
-                                                                                     hira_punc_number_latin,
-                                                                                     preprocessed_char_number,
-                                                                                     word_vocab, char_vocab,
-                                                                                     janome_tokenizer)
+                                                                                 real_vocab_number,
+                                                                                 chara_bukken_revised,
+                                                                                 additional_translate,
+                                                                                 hira_punc_number_latin,
+                                                                                 preprocessed_char_number,
+                                                                                 word_vocab, char_vocab,
+                                                                                 janome_tokenizer)
+    with open("unk_exp/rakuten_processed_review_split.pickle", "wb") as f:
+        pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin,
+                     preprocessed_char_number, word_vocab, char_vocab,
+                     x_s_train, x_c_train, x_w_train, y_train,
+                     x_s_validation, x_c_validation, x_w_validation, y_validation,
+                     x_s_test_normal, x_c_test_normal, x_w_test_normal, y_test_normal,
+                     x_s_test_unk_w, x_c_test_unk_w, x_w_test_unk_w, y_test_unk_w,
+                     x_s_test_unk_c, x_c_test_unk_c, x_w_test_unk_c, y_test_unk_c), f)
+
+
+def unk_experiment_j():
+    with open("unk_exp/rakuten_processed_review_split.pickle", "rb") as f:
+        full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin, \
+        preprocessed_char_number, word_vocab, char_vocab, \
+        x_s_train, x_c_train, x_w_train, y_train, \
+        x_s_validation, x_c_validation, x_w_validation, y_validation, \
+        x_s_test_normal, x_c_test_normal, x_w_test_normal, y_test_normal, \
+        x_s_test_unk_w, x_c_test_unk_w, x_w_test_unk_w, y_test_unk_w, \
+        x_s_test_unk_c, x_c_test_unk_c, x_w_test_unk_c, y_test_unk_c = pickle.load(f)
     word_vocab_size = len(word_vocab)
     char_vocab_size = len(char_vocab)
     num_class = 2
@@ -170,7 +191,8 @@ def unk_experiment_j():
 
     model_name = "Radical-CNN-RNN"
     print("======MODEL: ", model_name, "======")
-    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
                                char_shape=True, word=False, char=False,
                                cnn_encoder=True, highway=None, nohighway="linear",
                                attention=True, shape_filter=True, char_filter=True)
@@ -185,7 +207,8 @@ def unk_experiment_j():
 
     model_name = "CHAR-CNN-RNN"
     print("======MODEL: ", model_name, "======")
-    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
                                char_shape=False, word=False, char=True,
                                cnn_encoder=True, highway=None, nohighway="linear",
                                attention=True, shape_filter=True, char_filter=True)
@@ -200,7 +223,8 @@ def unk_experiment_j():
 
     model_name = "WORD-RNN"
     print("======MODEL: ", model_name, "======")
-    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=num_class,
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
                                char_shape=False, word=True, char=False,
                                cnn_encoder=True, highway=None, nohighway="linear",
                                attention=True, shape_filter=True, char_filter=True)
@@ -239,4 +263,5 @@ def unk_experiment_j():
 
 
 if __name__ == "__main__":
+    unk_exp_preproces_j()
     unk_experiment_j()
