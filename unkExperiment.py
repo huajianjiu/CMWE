@@ -194,7 +194,7 @@ def unk_experiment_j():
     model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
                                word_vocab_size=word_vocab_size, classes=num_class,
                                char_shape=True, word=False, char=False,
-                               cnn_encoder=True, highway=None, nohighway="linear",
+                               cnn_encoder=True, highway="relu", nohighway="linear",
                                attention=True, shape_filter=True, char_filter=True)
     print("Train")
     train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
@@ -205,63 +205,68 @@ def unk_experiment_j():
     print("Test-UNK-CHAR")
     test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
 
-    model_name = "CHAR-CNN-RNN"
-    print("======MODEL: ", model_name, "======")
-    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                               word_vocab_size=word_vocab_size, classes=num_class,
-                               char_shape=False, word=False, char=True,
-                               cnn_encoder=True, highway=None, nohighway="linear",
-                               attention=True, shape_filter=True, char_filter=True)
-    print("Train")
-    train_model(model, x_c_train, y_train, x_c_validation, y_validation, model_name, path="unk_exp/")
-    print("Test-Normal")
-    test_model(model, model_name, x_c_test_normal, y_test_normal, path="unk_exp/")
-    print("Test-UNK-WORDS")
-    test_model(model, model_name, x_c_test_unk_w, y_test_unk_w, path="unk_exp/")
-    print("Test-UNK-CHAR")
-    test_model(model, model_name, x_c_test_unk_c, y_test_unk_c, path="unk_exp/")
+    # model_name = "CHAR-CNN-RNN"
+    # print("======MODEL: ", model_name, "======")
+    # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+    #                            word_vocab_size=word_vocab_size, classes=num_class,
+    #                            char_shape=False, word=False, char=True,
+    #                            cnn_encoder=True, highway="relu", nohighway="linear",
+    #                            attention=True, shape_filter=True, char_filter=True)
+    # print("Train")
+    # train_model(model, x_c_train, y_train, x_c_validation, y_validation, model_name, path="unk_exp/")
+    # print("Test-Normal")
+    # test_model(model, model_name, x_c_test_normal, y_test_normal, path="unk_exp/")
+    # print("Test-UNK-WORDS")
+    # test_model(model, model_name, x_c_test_unk_w, y_test_unk_w, path="unk_exp/")
+    # print("Test-UNK-CHAR")
+    # test_model(model, model_name, x_c_test_unk_c, y_test_unk_c, path="unk_exp/")
 
-    model_name = "WORD-RNN"
-    print("======MODEL: ", model_name, "======")
-    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                               word_vocab_size=word_vocab_size, classes=num_class,
-                               char_shape=False, word=True, char=False,
-                               cnn_encoder=True, highway=None, nohighway="linear",
-                               attention=True, shape_filter=True, char_filter=True)
-    print("Train")
-    train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
-    print("Test-Normal")
-    test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
-    print("Test-UNK-WORDS")
-    test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
-    print("Test-UNK-CHAR")
-    test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
+    # model_name = "WORD-RNN"
+    # print("======MODEL: ", model_name, "======")
+    # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+    #                            word_vocab_size=word_vocab_size, classes=num_class,
+    #                            char_shape=False, word=True, char=False,
+    #                            cnn_encoder=True, highway=None, nohighway="linear",
+    #                            attention=True, shape_filter=True, char_filter=True)
+    # print("Train")
+    # train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
+    # print("Test-Normal")
+    # test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
+    # print("Test-UNK-WORDS")
+    # test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
+    # print("Test-UNK-CHAR")
+    # test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
 
-    model_name = "WORD-HATT"
-    print("======MODEL: ", model_name, "======")
-    model = build_hatt(word_vocab_size, 2)
-    print("Train")
-    train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
-    print("Test-Normal")
-    test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
-    print("Test-UNK-WORDS")
-    test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
-    print("Test-UNK-CHAR")
-    test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
-
-    model_name = "WORD-FASTTEXT"
-    print("======MODEL: ", model_name, "======")
-    model = build_fasttext(word_vocab_size, 2)
-    print("Train")
-    train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
-    print("Test-Normal")
-    test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
-    print("Test-UNK-WORDS")
-    test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
-    print("Test-UNK-CHAR")
-    test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
+    # model_name = "WORD-HATT"
+    # print("======MODEL: ", model_name, "======")
+    # model = build_hatt(word_vocab_size, 2)
+    # print("Train")
+    # _x_w_train = numpy.reshape(x_w_train, (x_w_train.shape[0], 5, 100))
+    # _x_w_validation = numpy.reshape(x_w_validation, (x_w_validation.shape[0], 5, 100))
+    # _x_w_test_normal = numpy.reshape(x_w_test_normal, (x_w_test_normal.shape[0], 5, 100))
+    # _x_w_test_unk_w = numpy.reshape(x_w_test_unk_w, (x_w_test_unk_w.shape[0], 5, 100))
+    # _x_w_test_unk_c = numpy.reshape(x_w_test_unk_c, (x_w_test_unk_c.shape[0], 5, 100))
+    # train_model(model, _x_w_train, y_train, _x_w_validation, y_validation, model_name, path="unk_exp/")
+    # print("Test-Normal")
+    # test_model(model, model_name, _x_w_test_normal, y_test_normal, path="unk_exp/")
+    # print("Test-UNK-WORDS")
+    # test_model(model, model_name, _x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
+    # print("Test-UNK-CHAR")
+    # test_model(model, model_name, _x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
+    #
+    # model_name = "WORD-FASTTEXT"
+    # print("======MODEL: ", model_name, "======")
+    # model = build_fasttext(word_vocab_size, 2)
+    # print("Train")
+    # train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
+    # print("Test-Normal")
+    # test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
+    # print("Test-UNK-WORDS")
+    # test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
+    # print("Test-UNK-CHAR")
+    # test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
 
 
 if __name__ == "__main__":
-    unk_exp_preproces_j()
+    # unk_exp_preproces_j()
     unk_experiment_j()
