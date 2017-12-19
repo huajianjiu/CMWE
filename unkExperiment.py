@@ -195,7 +195,7 @@ def unk_experiment_j():
                                word_vocab_size=word_vocab_size, classes=num_class,
                                char_shape=True, word=False, char=False,
                                cnn_encoder=True, highway="relu", nohighway="linear",
-                               attention=True, shape_filter=True, char_filter=True)
+                               attention=False, shape_filter=True, char_filter=True)
     print("Train")
     train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
     print("Test-Normal")
