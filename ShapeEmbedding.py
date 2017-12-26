@@ -83,7 +83,7 @@ def load_shape_data(datafile="usc-shape_bukken_data.pickle"):
 def train_and_test_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop=True, path=""):
     # model = to_multi_gpu(model)
     print(model_name)
-    result = train_model(model, x_train, y_train, x_val, y_val, x_test, y_test, model_name, early_stop, path)
+    result = train_model(model, x_train, y_train, x_val, y_val, model_name, early_stop, path)
     model.load_weights("checkpoints/" + model_name + "_bestloss.hdf5")
     test_model(model, model_name, x_test, y_test, path)
     predict_value(model, model_name, x_test)
