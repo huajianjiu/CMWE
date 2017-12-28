@@ -88,6 +88,7 @@ def generate_skipgram_pair(filepath=None):
     with open("../HistoryData/term_vocabulary_after_train.pickle", "wb") as f_save_tv:
         pickle.dump(term_vocabulary, f_save_tv)
 
+
 def build_radical_cnn(radical_vocab_size, radical_emb_dim, radical_width, input_length, output_classes):
     init_width = 0.5 / radical_emb_dim
     init_weight = numpy.random.uniform(low=-init_width, high=init_width, size=(radical_vocab_size, radical_emb_dim))

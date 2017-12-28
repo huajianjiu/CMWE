@@ -393,6 +393,62 @@ def build_sentence_rnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10
     return sentence_model
 
 
+#TODO: CNN decoder
+def build_sentence_cnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10,
+                       classes=2, attention=False, dropout=0,
+                       word=True, char=False, char_shape=True, model="rnn", cnn_encoder=True,
+                       highway=None, nohighway=None, shape_filter=True, char_filter=True):
+    # build the rnn of words, use the output of build_word_feature as the feature of each word
+    if char_shape:
+        word_feature_encoder = build_word_feature_shape(vocab_size=real_vocab_number,
+                                                        cnn_encoder=cnn_encoder,
+                                                        highway=highway, nohighway=nohighway,
+                                                        shape_filter=shape_filter,
+                                                        char_filter=char_filter)
+        sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype='int32')
+        word_feature_sequence = TimeDistributed(word_feature_encoder)(sentence_input)
+        # print(word_feature_sequence._keras_shape)
+    if word:
+        sentence_word_input = Input(shape=(MAX_SENTENCE_LENGTH,), dtype='int32')
+        word_embedding_sequence = Embedding(input_dim=word_vocab_size, output_dim=WORD_DIM)(sentence_word_input)
+    if char:
+        word_feature_encoder = build_word_feature_char(vocab_size=char_vocab_size,
+                                                       cnn_encoder=cnn_encoder, highway=highway)
+        char_input = Input(shape=(MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype='int32')
+        word_feature_sequence = TimeDistributed(word_feature_encoder)(char_input)
+    if char_shape and word and not char:
+        word_feature_sequence = concatenate([word_feature_sequence, word_embedding_sequence], axis=2)
+    if word and not char_shape and not char:
+        word_feature_sequence = word_embedding_sequence
+    # print(word_feature_sequence._keras_shape)
+    if model == "rnn":
+        if attention:
+            lstm_rnn = Bidirectional(LSTM(150, dropout=dropout, return_sequences=True))(word_feature_sequence)
+            if highway:
+                lstm_rnn = TimeDistributed(Highway(activation=highway))(lstm_rnn)
+            elif nohighway:
+                lstm_rnn = TimeDistributed(Dense(units=300, activation=nohighway))(lstm_rnn)
+            lstm_rnn = AttentionWithContext()(lstm_rnn)
+        else:
+            lstm_rnn = Bidirectional(LSTM(150, dropout=dropout, return_sequences=False))(word_feature_sequence)
+        x = lstm_rnn
+    if classes < 2:
+        print("class number cannot less than 2")
+        exit(1)
+    else:
+        preds = Dense(classes, activation='softmax')(x)
+    if char_shape and not word and not char:
+        sentence_model = Model(sentence_input, preds)
+    if word and not char_shape and not char:
+        sentence_model = Model(sentence_word_input, preds)
+    if word and char_shape and not char:
+        sentence_model = Model([sentence_input, sentence_word_input], preds)
+    if char and not word and not char_shape:
+        sentence_model = Model(char_input, preds)
+    sentence_model.summary()
+    return sentence_model
+
+
 def build_hatt(word_vocab_size, classes):
     MAX_SENT_LENGTH = 100
     MAX_SENTS = 5
