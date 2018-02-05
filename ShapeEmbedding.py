@@ -194,7 +194,7 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
         try:
             i = ch2id[c]
         except KeyError:
-            print("Unknown Character: ", c)
+            # print("Unknown Character: ", c)
             if skip_unknown:
                 continue  # skip unknown words
             else:
