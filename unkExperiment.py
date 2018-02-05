@@ -432,6 +432,8 @@ def lime_radical_classifier_wordI(string_list):
     for i, text in enumerate(string_list):
         parse_tokens = janome_tokenizer.tokenize(text)
         for j, mrph in enumerate(parse_tokens):
+            if j + 1 > MAX_SENTENCE_LENGTH:
+                break
             word = mrph.surface
             char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
                                                 chara_bukken_revised=chara_bukken_revised,
@@ -443,7 +445,8 @@ def lime_radical_classifier_wordI(string_list):
             elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
                 char_index = char_index[:COMP_WIDTH * MAX_WORD_LENGTH]
             for k, comp in enumerate(char_index):
-                x_data[i, j, k] = comp
+                if k < COMP_WIDTH * MAX_WORD_LENGTH:
+                    x_data[i, j, k] = comp
     model_name = "Radical-CNN-RNN ARC"
     print("======MODEL: ", model_name, "======")
     model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2,
@@ -475,6 +478,8 @@ def lime_character_classifier_wordI(string_list):
     for i, text in enumerate(string_list):
         parse_tokens = janome_tokenizer.tokenize(text)
         for j, mrph in enumerate(parse_tokens):
+            if j + 1 > MAX_SENTENCE_LENGTH:
+                break
             word = mrph.surface
             for k, char in enumerate(word):
                 if char not in char_vocab:
@@ -516,6 +521,8 @@ def lime_fasttext_classifier_wordI(string_list):
     for i, text in enumerate(string_list):
         parse_tokens = janome_tokenizer.tokenize(text)
         for j, mrph in enumerate(parse_tokens):
+            if j + 1 > MAX_SENTENCE_LENGTH:
+                break
             word = mrph.surface
             if word not in word_vocab:
                 word_vocab.append(word)
