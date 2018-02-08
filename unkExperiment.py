@@ -192,21 +192,21 @@ def unk_experiment_j():
     num_class = 2
     data_set_name = "Rakuten_UNK"
 
-    model_name = "Radical-CNN-RNN HARC"
-    print("======MODEL: ", model_name, "======")
-    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-                               word_vocab_size=word_vocab_size, classes=num_class,
-                               char_shape=True, word=False, char=False,
-                               cnn_encoder=True, highway="relu", nohighway="linear",
-                               attention=True, shape_filter=True, char_filter=True)
-    print("Train")
-    train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
-    print("Test-Normal")
-    test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
-    print("Test-UNK-WORDS")
-    test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
-    print("Test-UNK-CHAR")
-    test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
+    # model_name = "Radical-CNN-RNN HARC"
+    # print("======MODEL: ", model_name, "======")
+    # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+    #                            word_vocab_size=word_vocab_size, classes=num_class,
+    #                            char_shape=True, word=False, char=False,
+    #                            cnn_encoder=True, highway="relu", nohighway="linear",
+    #                            attention=True, shape_filter=True, char_filter=True)
+    # print("Train")
+    # train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
+    # print("Test-Normal")
+    # test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
+    # print("Test-UNK-WORDS")
+    # test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
+    # print("Test-UNK-CHAR")
+    # test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
 
 
     # model_name = "Radical-CNN-RNN HAR"
@@ -288,6 +288,22 @@ def unk_experiment_j():
     # test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
     # print("Test-UNK-CHAR")
     # test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
+
+    model_name = "Radical-CNN-RNN RC"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway=None, nohighway="linear",
+                               attention=False, shape_filter=True, char_filter=True)
+    print("Train")
+    train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
 
     # model_name = "CHAR-CNN-RNN"
     # print("======MODEL: ", model_name, "======")
@@ -425,7 +441,7 @@ def analyse_datasets():
     analyse_dataset(test_unk_c_set, full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin, janome_tokenizer)
 
 
-def lime_radical_classifier_wordI(string_list):
+def lime_radical_classifier_arc_wordI(string_list):
     janome_tokenizer = JanomeTokenizer()
     x_data = numpy.zeros((len(string_list), MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
     full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin = get_vocab()
@@ -461,7 +477,7 @@ def lime_radical_classifier_wordI(string_list):
         y_output[i] = predicts
     return y_output
 
-def lime_radical_h_classifier_wordI(string_list):
+def lime_radical_harc_classifier_wordI(string_list):
     janome_tokenizer = JanomeTokenizer()
     x_data = numpy.zeros((len(string_list), MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
     full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin = get_vocab()
@@ -485,6 +501,114 @@ def lime_radical_h_classifier_wordI(string_list):
                 if k < COMP_WIDTH * MAX_WORD_LENGTH:
                     x_data[i, j, k] = comp
     model_name = "Radical-CNN-RNN HARC"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway='relu', nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=True)
+    model.load_weights("unk_exp/checkpoints/" + model_name + "_bestloss.hdf5")
+    predicts = model.predict(x_data)
+    y_output = numpy.zeros((len(string_list), 2), dtype=numpy.float32)
+    for i, predicts in enumerate(predicts):
+        y_output[i] = predicts
+    return y_output
+
+def lime_radical_rc_classifier_wordI(string_list):
+    janome_tokenizer = JanomeTokenizer()
+    x_data = numpy.zeros((len(string_list), MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
+    full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin = get_vocab()
+    n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
+    for i, text in enumerate(string_list):
+        parse_tokens = janome_tokenizer.tokenize(text)
+        for j, mrph in enumerate(parse_tokens):
+            if j + 1 > MAX_SENTENCE_LENGTH:
+                break
+            word = mrph.surface
+            char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                                chara_bukken_revised=chara_bukken_revised,
+                                                addition_translate=additional_translate,
+                                                sentence_text=word, preprocessed_char_number=len(full_vocab),
+                                                skip_unknown=False, shuffle=None)
+            if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
+                char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
+            elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
+                char_index = char_index[:COMP_WIDTH * MAX_WORD_LENGTH]
+            for k, comp in enumerate(char_index):
+                if k < COMP_WIDTH * MAX_WORD_LENGTH:
+                    x_data[i, j, k] = comp
+    model_name = "Radical-CNN-RNN RC"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway='relu', nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=True)
+    model.load_weights("unk_exp/checkpoints/" + model_name + "_bestloss.hdf5")
+    predicts = model.predict(x_data)
+    y_output = numpy.zeros((len(string_list), 2), dtype=numpy.float32)
+    for i, predicts in enumerate(predicts):
+        y_output[i] = predicts
+    return y_output
+
+def lime_radical_har_classifier_wordI(string_list):
+    janome_tokenizer = JanomeTokenizer()
+    x_data = numpy.zeros((len(string_list), MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
+    full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin = get_vocab()
+    n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
+    for i, text in enumerate(string_list):
+        parse_tokens = janome_tokenizer.tokenize(text)
+        for j, mrph in enumerate(parse_tokens):
+            if j + 1 > MAX_SENTENCE_LENGTH:
+                break
+            word = mrph.surface
+            char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                                chara_bukken_revised=chara_bukken_revised,
+                                                addition_translate=additional_translate,
+                                                sentence_text=word, preprocessed_char_number=len(full_vocab),
+                                                skip_unknown=False, shuffle=None)
+            if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
+                char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
+            elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
+                char_index = char_index[:COMP_WIDTH * MAX_WORD_LENGTH]
+            for k, comp in enumerate(char_index):
+                if k < COMP_WIDTH * MAX_WORD_LENGTH:
+                    x_data[i, j, k] = comp
+    model_name = "Radical-CNN-RNN HAR"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway='relu', nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=True)
+    model.load_weights("unk_exp/checkpoints/" + model_name + "_bestloss.hdf5")
+    predicts = model.predict(x_data)
+    y_output = numpy.zeros((len(string_list), 2), dtype=numpy.float32)
+    for i, predicts in enumerate(predicts):
+        y_output[i] = predicts
+    return y_output
+
+def lime_radical_hac_classifier_wordI(string_list):
+    janome_tokenizer = JanomeTokenizer()
+    x_data = numpy.zeros((len(string_list), MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH))
+    full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin = get_vocab()
+    n_hira_punc_number_latin = len(hira_punc_number_latin) + 2
+    for i, text in enumerate(string_list):
+        parse_tokens = janome_tokenizer.tokenize(text)
+        for j, mrph in enumerate(parse_tokens):
+            if j + 1 > MAX_SENTENCE_LENGTH:
+                break
+            word = mrph.surface
+            char_index = text_to_char_index(full_vocab=full_vocab, real_vocab_number=real_vocab_number,
+                                                chara_bukken_revised=chara_bukken_revised,
+                                                addition_translate=additional_translate,
+                                                sentence_text=word, preprocessed_char_number=len(full_vocab),
+                                                skip_unknown=False, shuffle=None)
+            if len(char_index) < COMP_WIDTH * MAX_WORD_LENGTH:
+                char_index = char_index + [0] * (COMP_WIDTH * MAX_WORD_LENGTH - len(char_index))  # Padding
+            elif len(char_index) > COMP_WIDTH * MAX_WORD_LENGTH:
+                char_index = char_index[:COMP_WIDTH * MAX_WORD_LENGTH]
+            for k, comp in enumerate(char_index):
+                if k < COMP_WIDTH * MAX_WORD_LENGTH:
+                    x_data[i, j, k] = comp
+    model_name = "Radical-CNN-RNN HAC"
     print("======MODEL: ", model_name, "======")
     model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2,
                                char_shape=True, word=False, char=False,
@@ -585,11 +709,16 @@ def lime_analyse(input_text):
     # exp.save_to_file('character_oi.html')
     # exp = explainer.explain_instance(input_text, lime_fasttext_classifier_wordI)
     # exp.save_to_file('fasttext_oi.html')
-    exp = explainer.explain_instance(input_text, lime_radical_h_classifier_wordI)
-    exp.save_to_file('radical_harc_oi.html')
+    exp = explainer.explain_instance(input_text, lime_radical_rc_classifier_wordI)
+    exp.save_to_file('radical_rc_oi.html')
+    exp = explainer.explain_instance(input_text, lime_radical_har_classifier_wordI)
+    exp.save_to_file('radical_rc_oi.html')
+    exp = explainer.explain_instance(input_text, lime_radical_hac_classifier_wordI)
+    exp.save_to_file('radical_rc_oi.html')
+
 
 def lime_find_good_example(texts, true_label):
-    y_outputs_radical = lime_radical_h_classifier_wordI(texts)
+    y_outputs_radical = lime_radical_harc_classifier_wordI(texts)
     y_outputs_canlm = lime_character_classifier_wordI(texts)
     y_outputs_fast = lime_fasttext_classifier_wordI(texts)
     for i, outputs in enumerate(zip(y_outputs_radical, y_outputs_canlm, y_outputs_fast)):
@@ -597,7 +726,7 @@ def lime_find_good_example(texts, true_label):
             print("Good example: #", i, ": ", texts[i])
             input_text = texts[i]
             explainer = LimeTextExplainer(class_names=["negative", "positive"])
-            exp = explainer.explain_instance(input_text, lime_radical_h_classifier_wordI)
+            exp = explainer.explain_instance(input_text, lime_radical_harc_classifier_wordI)
             fig = exp.as_pyplot_figure()
             exp.save_to_file('radical_oi.html')
             exp = explainer.explain_instance(input_text, lime_character_classifier_wordI)
@@ -612,29 +741,29 @@ def lime_find_good_example(texts, true_label):
 def lime_find_wrong_output(test_sets):
     count = 0
     for test_set in test_sets:
-        y_outputs_radical = lime_radical_h_classifier_wordI(test_set["positive"])
+        y_outputs_radical = lime_radical_harc_classifier_wordI(test_set["positive"])
         for text, predict in zip(test_set["positive"], y_outputs_radical):
             if predict[0] > 0.5:
                 count += 1
                 explainer = LimeTextExplainer(class_names=["negative", "positive"])
-                exp = explainer.explain_instance(text, lime_radical_h_classifier_wordI)
+                exp = explainer.explain_instance(text, lime_radical_harc_classifier_wordI)
                 exp.save_to_file('LIME_error_analysis/radical_oi_'+str(count)+'_positive.html')
-        y_outputs_radical = lime_radical_h_classifier_wordI(test_set["negative"])
+        y_outputs_radical = lime_radical_harc_classifier_wordI(test_set["negative"])
         for text, predict in zip(test_set["negative"], y_outputs_radical):
             if predict[1] > 0.5:
                 count += 1
                 explainer = LimeTextExplainer(class_names=["negative", "positive"])
-                exp = explainer.explain_instance(text, lime_radical_h_classifier_wordI)
+                exp = explainer.explain_instance(text, lime_radical_harc_classifier_wordI)
                 exp.save_to_file('LIME_error_analysis/radical_oi_' + str(count) + '_negative.html')
 
 
 if __name__ == "__main__":
     # unk_exp_preproces_j()
-    # unk_experiment_j()
+    unk_experiment_j()
     # analyse_datasets()
 
     train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set \
         = pickle.load(open("rakuten/rakuten_review_split.pickle", "rb"))
-    # lime_analyse(test_unk_w_set["positive"][80])
+    lime_analyse(test_unk_w_set["positive"][80])
     # lime_find_good_example(test_unk_w_set["positive"], 1)
-    lime_find_wrong_output([test_normal_set, test_unk_w_set, test_unk_c_set])
+    # lime_find_wrong_output([test_normal_set, test_unk_w_set, test_unk_c_set])
