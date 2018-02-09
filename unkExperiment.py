@@ -540,8 +540,8 @@ def lime_radical_rc_classifier_wordI(string_list):
     print("======MODEL: ", model_name, "======")
     model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2,
                                char_shape=True, word=False, char=False,
-                               cnn_encoder=True, highway='relu', nohighway="linear",
-                               attention=True, shape_filter=True, char_filter=True)
+                               cnn_encoder=True, highway=None, nohighway="linear",
+                               attention=False, shape_filter=True, char_filter=True)
     model.load_weights("unk_exp/checkpoints/" + model_name + "_bestloss.hdf5")
     predicts = model.predict(x_data)
     y_output = numpy.zeros((len(string_list), 2), dtype=numpy.float32)
@@ -577,7 +577,7 @@ def lime_radical_har_classifier_wordI(string_list):
     model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2,
                                char_shape=True, word=False, char=False,
                                cnn_encoder=True, highway='relu', nohighway="linear",
-                               attention=True, shape_filter=True, char_filter=True)
+                               attention=True, shape_filter=True, char_filter=False)
     model.load_weights("unk_exp/checkpoints/" + model_name + "_bestloss.hdf5")
     predicts = model.predict(x_data)
     y_output = numpy.zeros((len(string_list), 2), dtype=numpy.float32)
@@ -613,7 +613,7 @@ def lime_radical_hac_classifier_wordI(string_list):
     model = build_sentence_rnn(real_vocab_number=real_vocab_number, classes=2,
                                char_shape=True, word=False, char=False,
                                cnn_encoder=True, highway='relu', nohighway="linear",
-                               attention=True, shape_filter=True, char_filter=True)
+                               attention=True, shape_filter=False, char_filter=True)
     model.load_weights("unk_exp/checkpoints/" + model_name + "_bestloss.hdf5")
     predicts = model.predict(x_data)
     y_output = numpy.zeros((len(string_list), 2), dtype=numpy.float32)
@@ -712,9 +712,9 @@ def lime_analyse(input_text):
     exp = explainer.explain_instance(input_text, lime_radical_rc_classifier_wordI)
     exp.save_to_file('radical_rc_oi.html')
     exp = explainer.explain_instance(input_text, lime_radical_har_classifier_wordI)
-    exp.save_to_file('radical_rc_oi.html')
+    exp.save_to_file('radical_har_oi.html')
     exp = explainer.explain_instance(input_text, lime_radical_hac_classifier_wordI)
-    exp.save_to_file('radical_rc_oi.html')
+    exp.save_to_file('radical_hac_oi.html')
 
 
 def lime_find_good_example(texts, true_label):
@@ -759,7 +759,7 @@ def lime_find_wrong_output(test_sets):
 
 if __name__ == "__main__":
     # unk_exp_preproces_j()
-    unk_experiment_j()
+    # unk_experiment_j()
     # analyse_datasets()
 
     train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set \
