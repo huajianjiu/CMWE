@@ -393,7 +393,7 @@ def build_sentence_rnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10
     return sentence_model
 
 
-#TODO: CNN decoder
+#TODO: CNN sent encoder
 def build_sentence_cnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10,
                        classes=2, attention=False, dropout=0,
                        word=True, char=False, char_shape=True, model="rnn", cnn_encoder=True,
