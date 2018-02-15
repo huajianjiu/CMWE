@@ -15,11 +15,11 @@ def getJp():
         if line[0] == "#":
             continue
         text = line[0]
-        im = Image.new("1", (28,28), 0)
+        im = Image.new("1", (32,32), 0)
         dr = ImageDraw.Draw(im)
-        font = ImageFont.truetype("/usr/share/fonts/truetype/takao-mincho/TakaoPMincho.ttf", 28)
+        font = ImageFont.truetype("/usr/share/fonts/truetype/takao-mincho/TakaoPMincho.ttf", 32)
         dr.text((0, 0), text, font=font, fill=1)
-        im.save("1.jpg")
+        # im.save("1.jpg")
         img = np.array(im, dtype="int32")
         char_vocab.append(text)
         shape_vocab.append(img)
@@ -30,7 +30,7 @@ def getJp():
         "shapes": shape_vocab,
         "char_shape": char_shape
     }
-    with open("jp_shape_vocab.pickle", "wb") as f:
+    with open("jp_shape32_vocab.pickle", "wb") as f:
         pickle._dump(shape_vocab_data, f)
 
 
@@ -67,5 +67,5 @@ def getCh():
         pickle._dump(shape_vocab_data, f)
 
 if __name__ == "__main__":
-    getCh()
+    getJp()
 

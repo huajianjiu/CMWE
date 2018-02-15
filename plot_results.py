@@ -10,7 +10,6 @@ class MyException(Exception):
 
 
 def plot_results(results, dirname, datatype="keras"):
-    plt.close('all')
 
     fig, axarr = plt.subplots(2, sharex=True, sharey=True)
 
@@ -39,6 +38,33 @@ def plot_results(results, dirname, datatype="keras"):
     axarr[0].grid()
     axarr[1].grid()
     plt.savefig('plots/' + dirname[:-1] + "_val.png", bbox_extra_artists=(lgd1, ), bbox_inches='tight')
+
+
+def plot_result(history, dirname):
+    plt.clf()
+    # plt.plot(history.history['acc'])
+    # plt.plot(history.history['val_acc'])
+    # plt.title('model accuracy')
+    # plt.ylabel('accuracy')
+    # plt.xlabel('epoch')
+    # plt.legend(['train', 'test'], loc='upper left')
+    # plt.show()
+    # summarize history for loss
+    plt.figure(figsize=(4,3))
+    plt.ylim(0.0, 0.7)
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    # plt.title('model loss')
+    plt.ylabel('Cross Entropy Error')
+    plt.xlabel('Epoch')
+    plt.legend(['train', 'validate'], loc='upper left')
+    # plt.show()
+    plt.savefig('plots/' + dirname + ".png", bbox_inches='tight')
+
+
+def save_curve(history, modelname):
+    with open(modelname+'_trainHistory', "wb") as f:
+        pickle.dump(history, f)
 
 
 def save_curve_data(results, filename):

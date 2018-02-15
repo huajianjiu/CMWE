@@ -14,7 +14,7 @@ from getShapeCode import get_all_word_bukken, get_all_character
 from janome.tokenizer import Tokenizer as JanomeTokenizer
 from keras import backend as K
 from tqdm import tqdm
-from plot_results import plot_results, save_curve_data
+from plot_results import plot_result, save_curve, plot_results, save_curve_data
 from dataReader import prepare_char, prepare_word, shuffle_kv
 
 
@@ -28,7 +28,7 @@ TEST_SPLIT = 0.1
 BATCH_SIZE = 100
 WORD_DIM = 600
 MAX_RUN = 1
-VERBOSE = 0
+VERBOSE = 1
 EPOCHS = 50
 
 def _make_kana_convertor():
@@ -105,6 +105,7 @@ def train_model(model, x_train, y_train, x_val, y_val, model_name, early_stop=Tr
     else:
         result = model.fit(x_train, y_train, validation_data=(x_val, y_val), verbose=VERBOSE,
                            epochs=EPOCHS, batch_size=BATCH_SIZE, callbacks=[reducelr, checkpoint_loss])
+    # plot_result(result, model_name)
     return result
 
 

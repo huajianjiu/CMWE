@@ -17,6 +17,7 @@ from dataReader import prepare_char, prepare_word, shuffle_kv
 import lime
 from lime import lime_text
 from lime.lime_text import LimeTextExplainer
+from matplotlib import pyplot as plt
 
 from ShapeEmbedding import build_fasttext, build_hatt, build_sentence_rnn, build_word_feature_char, \
     build_word_feature_shape, text_to_char_index, get_vocab, _make_kana_convertor, train_model, test_model
@@ -31,8 +32,44 @@ TEST_SPLIT = 0.1
 BATCH_SIZE = 100
 WORD_DIM = 600
 MAX_RUN = 1
-VERBOSE = 0
-EPOCHS = 50
+VERBOSE = 1
+EPOCHS = 30
+
+
+def load_data(set='015'):
+    if set=='015':
+        train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set\
+            = pickle.load(open("rakuten/rakuten_review_split_only1and5.pickle", "rb"))
+        test_unk_c_set["positive"] = test_unk_c_set["positive"][:1000]
+        return train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set
+    elif set=='012345':
+        train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set \
+            = pickle.load(open("rakuten/rakuten_review_split.pickle", "rb"))
+        return train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set
+    else:
+        print("illegal set name")
+        exit(-1)
+
+
+def plot_result(history, dirname):
+    plt.clf()
+    plt.figure(figsize=(4, 3))
+    plt.ylim(0.0, 0.5)
+    print(dir(history))
+    print(dir(history.validation_data))
+    print(history.history.keys())
+    print(history.history['val_loss'])
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.plot(history.history['Test_N_loss'])
+    plt.plot(history.history['Test_UNKW_loss'])
+    plt.plot(history.history['Test_UNKC_loss'])
+    # plt.title('model loss')
+    plt.ylabel('Cross Entropy Error')
+    plt.xlabel('Epoch')
+    plt.legend(['train', 'validate', 'normal test', 'unknown words', 'unknown characters'], loc='upper left')
+    # plt.show()
+    plt.savefig('plots/' + dirname + ".png", bbox_inches='tight')
 
 
 def shuffle_data_one_set(data_shape, data_char, data_word, labels):
@@ -119,7 +156,7 @@ def print_vocab_size(full_vocab, word_vocab, char_vocab):
 
 def unk_exp_preproces_j():
     train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set \
-        = pickle.load(open("rakuten/rakuten_review_split.pickle", "rb"))
+        = load_data()
 
     janome_tokenizer = JanomeTokenizer()
     full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin = get_vocab()
@@ -168,7 +205,7 @@ def unk_exp_preproces_j():
                                                                                  preprocessed_char_number,
                                                                                  word_vocab, char_vocab,
                                                                                  janome_tokenizer)
-    with open("unk_exp/rakuten_processed_review_split.pickle", "wb") as f:
+    with open("unk_exp/rakuten_processed_review_split_ongly15.pickle", "wb") as f:
         pickle.dump((full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin,
                      preprocessed_char_number, word_vocab, char_vocab,
                      x_s_train, x_c_train, x_w_train, y_train,
@@ -178,8 +215,8 @@ def unk_exp_preproces_j():
                      x_s_test_unk_c, x_c_test_unk_c, x_w_test_unk_c, y_test_unk_c), f)
 
 
-def unk_experiment_j():
-    with open("unk_exp/rakuten_processed_review_split.pickle", "rb") as f:
+def unk_experiment_j_p1():
+    with open("unk_exp/rakuten_processed_review_split_ongly15.pickle", "rb") as f:
         full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin, \
         preprocessed_char_number, word_vocab, char_vocab, \
         x_s_train, x_c_train, x_w_train, y_train, \
@@ -192,54 +229,53 @@ def unk_experiment_j():
     num_class = 2
     data_set_name = "Rakuten_UNK"
 
-    # model_name = "Radical-CNN-RNN HARC"
-    # print("======MODEL: ", model_name, "======")
-    # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-    #                            word_vocab_size=word_vocab_size, classes=num_class,
-    #                            char_shape=True, word=False, char=False,
-    #                            cnn_encoder=True, highway="relu", nohighway="linear",
-    #                            attention=True, shape_filter=True, char_filter=True)
-    # print("Train")
-    # train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
-    # print("Test-Normal")
-    # test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
-    # print("Test-UNK-WORDS")
-    # test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
-    # print("Test-UNK-CHAR")
-    # test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
+    model_name = "Radical-CNN-RNN HARC"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway="relu", nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=True)
+    print("Train")
+    train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
 
+    model_name = "Radical-CNN-RNN HAR"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway="relu", nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=False)
+    print("Train")
+    train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
 
-    # model_name = "Radical-CNN-RNN HAR"
-    # print("======MODEL: ", model_name, "======")
-    # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-    #                            word_vocab_size=word_vocab_size, classes=num_class,
-    #                            char_shape=True, word=False, char=False,
-    #                            cnn_encoder=True, highway="relu", nohighway="linear",
-    #                            attention=True, shape_filter=True, char_filter=False)
-    # print("Train")
-    # train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
-    # print("Test-Normal")
-    # test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
-    # print("Test-UNK-WORDS")
-    # test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
-    # print("Test-UNK-CHAR")
-    # test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
-    #
-    # model_name = "Radical-CNN-RNN HAC"
-    # print("======MODEL: ", model_name, "======")
-    # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-    #                            word_vocab_size=word_vocab_size, classes=num_class,
-    #                            char_shape=True, word=False, char=False,
-    #                            cnn_encoder=True, highway="relu", nohighway="linear",
-    #                            attention=True, shape_filter=False, char_filter=True)
-    # print("Train")
-    # train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
-    # print("Test-Normal")
-    # test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
-    # print("Test-UNK-WORDS")
-    # test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
-    # print("Test-UNK-CHAR")
-    # test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
+    model_name = "Radical-CNN-RNN HAC"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway="relu", nohighway="linear",
+                               attention=True, shape_filter=False, char_filter=True)
+    print("Train")
+    train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
 
     # model_name = "Radical-CNN-RNN AR"
     # print("======MODEL: ", model_name, "======")
@@ -272,7 +308,7 @@ def unk_experiment_j():
     # test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
     # print("Test-UNK-CHAR")
     # test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
-
+    # #
     # model_name = "Radical-CNN-RNN ARC"
     # print("======MODEL: ", model_name, "======")
     # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
@@ -288,6 +324,69 @@ def unk_experiment_j():
     # test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
     # print("Test-UNK-CHAR")
     # test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
+    #
+    # model_name = "Radical-CNN-RNN HRC"
+    # print("======MODEL: ", model_name, "======")
+    # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+    #                            word_vocab_size=word_vocab_size, classes=num_class,
+    #                            char_shape=True, word=False, char=False,
+    #                            cnn_encoder=True, highway="relu", nohighway="linear",
+    #                            attention=False, shape_filter=True, char_filter=True)
+    # print("Train")
+    # train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
+    # print("Test-Normal")
+    # test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
+    # print("Test-UNK-WORDS")
+    # test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
+    # print("Test-UNK-CHAR")
+    # test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
+
+
+def unk_experiment_j_p2():
+    with open("unk_exp/rakuten_processed_review_split_ongly15.pickle", "rb") as f:
+        full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin, \
+        preprocessed_char_number, word_vocab, char_vocab, \
+        x_s_train, x_c_train, x_w_train, y_train, \
+        x_s_validation, x_c_validation, x_w_validation, y_validation, \
+        x_s_test_normal, x_c_test_normal, x_w_test_normal, y_test_normal, \
+        x_s_test_unk_w, x_c_test_unk_w, x_w_test_unk_w, y_test_unk_w, \
+        x_s_test_unk_c, x_c_test_unk_c, x_w_test_unk_c, y_test_unk_c = pickle.load(f)
+    word_vocab_size = len(word_vocab)
+    char_vocab_size = len(char_vocab)
+    num_class = 2
+    data_set_name = "Rakuten_UNK"
+
+    model_name = "Radical-CNN-RNN HR"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway="relu", nohighway="linear",
+                               attention=False, shape_filter=True, char_filter=False)
+    print("Train")
+    train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
+
+    model_name = "Radical-CNN-RNN HC"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
+                               char_shape=True, word=False, char=False,
+                               cnn_encoder=True, highway="relu", nohighway="linear",
+                               attention=False, shape_filter=False, char_filter=True)
+    print("Train")
+    train_model(model, x_s_train, y_train, x_s_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_s_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_s_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
 
     model_name = "Radical-CNN-RNN RC"
     print("======MODEL: ", model_name, "======")
@@ -305,66 +404,66 @@ def unk_experiment_j():
     print("Test-UNK-CHAR")
     test_model(model, model_name, x_s_test_unk_c, y_test_unk_c, path="unk_exp/")
 
-    # model_name = "CHAR-CNN-RNN"
-    # print("======MODEL: ", model_name, "======")
-    # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-    #                            word_vocab_size=word_vocab_size, classes=num_class,
-    #                            char_shape=False, word=False, char=True,
-    #                            cnn_encoder=True, highway="relu", nohighway="linear",
-    #                            attention=True, shape_filter=True, char_filter=True)
-    # print("Train")
-    # train_model(model, x_c_train, y_train, x_c_validation, y_validation, model_name, path="unk_exp/")
-    # print("Test-Normal")
-    # test_model(model, model_name, x_c_test_normal, y_test_normal, path="unk_exp/")
-    # print("Test-UNK-WORDS")
-    # test_model(model, model_name, x_c_test_unk_w, y_test_unk_w, path="unk_exp/")
-    # print("Test-UNK-CHAR")
-    # test_model(model, model_name, x_c_test_unk_c, y_test_unk_c, path="unk_exp/")
-
-    # model_name = "WORD-RNN"
-    # print("======MODEL: ", model_name, "======")
-    # model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
-    #                            word_vocab_size=word_vocab_size, classes=num_class,
-    #                            char_shape=False, word=True, char=False,
-    #                            cnn_encoder=True, highway=None, nohighway="linear",
-    #                            attention=True, shape_filter=True, char_filter=True)
-    # print("Train")
-    # train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
-    # print("Test-Normal")
-    # test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
-    # print("Test-UNK-WORDS")
-    # test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
-    # print("Test-UNK-CHAR")
-    # test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
-
-    # model_name = "WORD-HATT"
-    # print("======MODEL: ", model_name, "======")
-    # model = build_hatt(word_vocab_size, 2)
-    # print("Train")
-    # _x_w_train = numpy.reshape(x_w_train, (x_w_train.shape[0], 5, 100))
-    # _x_w_validation = numpy.reshape(x_w_validation, (x_w_validation.shape[0], 5, 100))
-    # _x_w_test_normal = numpy.reshape(x_w_test_normal, (x_w_test_normal.shape[0], 5, 100))
-    # _x_w_test_unk_w = numpy.reshape(x_w_test_unk_w, (x_w_test_unk_w.shape[0], 5, 100))
-    # _x_w_test_unk_c = numpy.reshape(x_w_test_unk_c, (x_w_test_unk_c.shape[0], 5, 100))
-    # train_model(model, _x_w_train, y_train, _x_w_validation, y_validation, model_name, path="unk_exp/")
-    # print("Test-Normal")
-    # test_model(model, model_name, _x_w_test_normal, y_test_normal, path="unk_exp/")
-    # print("Test-UNK-WORDS")
-    # test_model(model, model_name, _x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
-    # print("Test-UNK-CHAR")
-    # test_model(model, model_name, _x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
+    model_name = "CHAR-CNN-RNN"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
+                               char_shape=False, word=False, char=True,
+                               cnn_encoder=True, highway="relu", nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=True)
+    print("Train")
+    train_model(model, x_c_train, y_train, x_c_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_c_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_c_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_c_test_unk_c, y_test_unk_c, path="unk_exp/")
     #
-    # model_name = "WORD-FASTTEXT"
-    # print("======MODEL: ", model_name, "======")
-    # model = build_fasttext(word_vocab_size, 2)
-    # print("Train")
-    # train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
-    # print("Test-Normal")
-    # test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
-    # print("Test-UNK-WORDS")
-    # test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
-    # print("Test-UNK-CHAR")
-    # test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
+    model_name = "WORD-RNN"
+    print("======MODEL: ", model_name, "======")
+    model = build_sentence_rnn(real_vocab_number=real_vocab_number, char_vocab_size=char_vocab_size,
+                               word_vocab_size=word_vocab_size, classes=num_class,
+                               char_shape=False, word=True, char=False,
+                               cnn_encoder=True, highway=None, nohighway="linear",
+                               attention=True, shape_filter=True, char_filter=True)
+    print("Train")
+    train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
+    #
+    model_name = "WORD-HATT"
+    print("======MODEL: ", model_name, "======")
+    model = build_hatt(word_vocab_size, 2)
+    print("Train")
+    _x_w_train = numpy.reshape(x_w_train, (x_w_train.shape[0], 5, 100))
+    _x_w_validation = numpy.reshape(x_w_validation, (x_w_validation.shape[0], 5, 100))
+    _x_w_test_normal = numpy.reshape(x_w_test_normal, (x_w_test_normal.shape[0], 5, 100))
+    _x_w_test_unk_w = numpy.reshape(x_w_test_unk_w, (x_w_test_unk_w.shape[0], 5, 100))
+    _x_w_test_unk_c = numpy.reshape(x_w_test_unk_c, (x_w_test_unk_c.shape[0], 5, 100))
+    train_model(model, _x_w_train, y_train, _x_w_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, _x_w_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, _x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, _x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
+
+    model_name = "WORD-FASTTEXT"
+    print("======MODEL: ", model_name, "======")
+    model = build_fasttext(word_vocab_size, 2)
+    print("Train")
+    train_model(model, x_w_train, y_train, x_w_validation, y_validation, model_name, path="unk_exp/")
+    print("Test-Normal")
+    test_model(model, model_name, x_w_test_normal, y_test_normal, path="unk_exp/")
+    print("Test-UNK-WORDS")
+    test_model(model, model_name, x_w_test_unk_w, y_test_unk_w, path="unk_exp/")
+    print("Test-UNK-CHAR")
+    test_model(model, model_name, x_w_test_unk_c, y_test_unk_c, path="unk_exp/")
 
 def analyse_dataset(s, full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin,
                   janome_tokenizer):
@@ -431,7 +530,7 @@ def analyse_dataset(s, full_vocab, real_vocab_number, chara_bukken_revised, addi
 def analyse_datasets():
     janome_tokenizer = JanomeTokenizer()
     train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set \
-        = pickle.load(open("rakuten/rakuten_review_split.pickle", "rb"))
+        = load_data()
     full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin = get_vocab()
     analyse_dataset(train_set, full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin, janome_tokenizer)
     analyse_dataset(tune_set, full_vocab, real_vocab_number, chara_bukken_revised, additional_translate, hira_punc_number_latin, janome_tokenizer)
@@ -759,11 +858,12 @@ def lime_find_wrong_output(test_sets):
 
 if __name__ == "__main__":
     # unk_exp_preproces_j()
-    # unk_experiment_j()
+    unk_experiment_j_p1()
+    # unk_experiment_j_p2()
     # analyse_datasets()
 
-    train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set \
-        = pickle.load(open("rakuten/rakuten_review_split.pickle", "rb"))
-    lime_analyse(test_unk_w_set["positive"][80])
+    # train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set \
+    #     = pickle.load(open("rakuten/rakuten_review_split.pickle", "rb"))
+    # lime_analyse(test_unk_w_set["positive"][80])
     # lime_find_good_example(test_unk_w_set["positive"], 1)
     # lime_find_wrong_output([test_normal_set, test_unk_w_set, test_unk_c_set])

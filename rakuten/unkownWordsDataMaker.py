@@ -33,9 +33,9 @@ def read_one_file(fpath, type, set_d, limit):
             review_text = line.split("\t")[15]
             # print("Rank: ", rank, " Text: ", review_text[:20], "...")
             # print(rank, review_text)
-            if rank >= 3 and p_count < limit:
+            if rank > 4 and p_count < limit:
                 label = 1
-            elif rank < 3 and n_count < limit:
+            elif rank < 2 and n_count < limit:
                 label = 0
             else:
                 continue
@@ -187,5 +187,5 @@ for fname in tqdm(file_list):
     else:
         break
 
-with open("rakuten_review_split.pickle", "wb") as f:
+with open("rakuten_review_split_only1and5.pickle", "wb") as f:
     pickle.dump((train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set), f)
