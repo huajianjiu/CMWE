@@ -26,26 +26,6 @@ def shuffle_kv(d):
     return dict(zip(keys, values))
 
 
-def split_data(data, labels):
-    # split data into training and validation
-    indices = numpy.arange(data.shape[0])
-    numpy.random.shuffle(indices)
-    data = data[indices]
-    labels = labels[indices]
-    # 80% to train, 10% to validation, 10% to test
-    nb_validation_test_samples = int((VALIDATION_SPLIT + TEST_SPLIT) * data.shape[0])
-    nb_test_samples = int((TEST_SPLIT) * data.shape[0])
-
-    x_train = data[:-nb_validation_test_samples]
-    y_train = labels[:-nb_validation_test_samples]
-    x_val = data[-nb_validation_test_samples:-nb_test_samples]
-    y_val = labels[-nb_validation_test_samples:-nb_test_samples]
-    x_test = data[-nb_test_samples:]
-    y_test = labels[-nb_test_samples:]
-
-    return x_train, y_train, x_val, y_val, x_test, y_test
-
-
 def get_ChnSenti_texts(dirname):
     TEXT_DATA_DIR = dirname
     texts = []  # list of text samples
