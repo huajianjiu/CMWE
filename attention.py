@@ -102,6 +102,7 @@ class AttentionWithContext(Layer):
     def compute_output_shape(self, input_shape):
         return input_shape[0], input_shape[-1]
 
+
 if __name__ == "__main__":
     from keras.models import Model
     from keras.layers import Input, Embedding, Bidirectional, TimeDistributed, GRU, Dense

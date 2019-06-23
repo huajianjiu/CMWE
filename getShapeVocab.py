@@ -66,6 +66,7 @@ def getCh():
     with open("ch_shape_vocab.pickle", "wb") as f:
         pickle._dump(shape_vocab_data, f)
 
+
 if __name__ == "__main__":
     getJp()
 

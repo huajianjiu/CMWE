@@ -71,6 +71,7 @@ def get_all_character(filename="IDS-UCS-Basic.txt"):
         chars.append(char)
     return chars
 
+
 if __name__ == "__main__":
     # print(strip_ideographic('⿱⿰&CDP-895C;&CDP-895C;一'))
     words, bukkens, word_bukken = get_all_word_bukken("IDS-UCS-test.txt")

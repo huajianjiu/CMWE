@@ -32,6 +32,7 @@ def getTexts(TEXT_DATA_DIR):
     print('Found %s texts.' % len(texts))
     return texts, labels_index, labels
 
+
 if __name__ == "__main__":
     # filename = "data/2000/pos"
     BASE_DIR = "/home/ke/CMWE/"

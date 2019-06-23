@@ -1,21 +1,8 @@
 import re, string, pickle, numpy, pandas, mojimoji, random, os, jieba, sys
-import tensorflow as tf
-from keras import optimizers
-from keras.models import Model
-from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
-    Bidirectional, LSTM, Dense, Flatten, GRU, Lambda
-from keras.legacy.layers import Highway
-from keras.callbacks import ReduceLROnPlateau, EarlyStopping, CSVLogger, ModelCheckpoint, TensorBoard
 from keras.utils.np_utils import to_categorical
-from attention import AttentionWithContext
 from getShapeCode import get_all_word_bukken, get_all_character
 from janome.tokenizer import Tokenizer as JanomeTokenizer
-from keras import backend as K
 from tqdm import tqdm
-from plot_results import plot_results, save_curve_data
-from dataReader import prepare_char, prepare_word, shuffle_kv
-import lime
-from lime import lime_text
 from lime.lime_text import LimeTextExplainer
 from matplotlib import pyplot as plt
 
@@ -858,8 +845,8 @@ def lime_find_wrong_output(test_sets):
 
 if __name__ == "__main__":
     # unk_exp_preproces_j()
-    unk_experiment_j_p1()
-    # unk_experiment_j_p2()
+    # unk_experiment_j_p1()
+    unk_experiment_j_p2()
     # analyse_datasets()
 
     # train_set, tune_set, validation_set, test_normal_set, test_unk_w_set, test_unk_c_set \

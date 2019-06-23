@@ -109,6 +109,7 @@ def shima_unk_experiment_test():
     test_model(model, 'shimada', x_unkw, y_unkw)
     test_model(model, 'shimada', x_unkc, y_unkc)
 
+
 if __name__=='__main__':
     # model = shimada_sentence_encoder()
     # shima_unk_experiment_train()
