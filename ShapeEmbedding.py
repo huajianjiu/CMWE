@@ -4,7 +4,7 @@ import tensorflow as tf
 from keras import optimizers
 from keras.models import Model
 from keras.layers import Embedding, Input, AveragePooling1D, MaxPooling1D, Conv1D, concatenate, TimeDistributed, \
-    Bidirectional, LSTM, Dense, Flatten, GRU, Lambda
+    Bidirectional, LSTM, Dense, Flatten, GRU, Lambda, Concatenate
 from keras.legacy.layers import Highway
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping, CSVLogger, ModelCheckpoint, TensorBoard
 from keras.utils.np_utils import to_categorical
@@ -220,7 +220,7 @@ def text_to_char_index(full_vocab, real_vocab_number, chara_bukken_revised, sent
 
 def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width=COMP_WIDTH,
                              mode="padding", cnn_encoder=True,
-                             highway="linear", nohighway=None, shape_filter=True, char_filter=True):
+                             highway="linear", nohighway=None, shape_filter=True, char_filter=True, position=False):
     # build the feature computed by cnn for each word in the sentence. used to input to the next rnn.
     # expected input: every #comp_width int express a character.
     # mode:
@@ -235,9 +235,25 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
     # print(init_weight)
     # first layer embeds
     #  every components
-    word_input = Input(shape=(COMP_WIDTH * MAX_WORD_LENGTH,))
-    char_embedding = \
-        Embedding(input_dim=vocab_size, output_dim=char_emb_dim, weights=[init_weight], trainable=True)(word_input)
+    if position:
+        num_inputs = 3
+        word_input = Input(shape=(num_inputs, COMP_WIDTH * MAX_WORD_LENGTH))
+        shape = Lambda(lambda x: x[:, 0, :])(word_input)  # use lambda to slice. not using lambda lead to errors
+        idc = Lambda(lambda x: x[:, 1, :])(word_input)
+        pos = Lambda(lambda x: x[:, 2, :])(word_input)
+        shape_embedding = \
+            Embedding(input_dim=vocab_size, output_dim=char_emb_dim, weights=[init_weight], trainable=True)(shape)
+        init_weight_idc = numpy.random.uniform(low=-init_width, high=init_width, size=(12 + 1, char_emb_dim))
+        init_weight_pos = numpy.random.uniform(low=-init_width, high=init_width, size=(COMP_WIDTH + 1, char_emb_dim))
+        idc_embedding = \
+            Embedding(input_dim=12 + 1, output_dim=char_emb_dim, weights=[init_weight_idc], trainable=True)(idc)  # totally 12 idc
+        pos_embedding = \
+            Embedding(input_dim=COMP_WIDTH + 1, output_dim=char_emb_dim, weights=[init_weight_pos], trainable=True)(pos)
+        char_embedding = Concatenate(axis=2)([shape_embedding, idc_embedding, pos_embedding])
+    else:
+        word_input = Input(shape=(COMP_WIDTH * MAX_WORD_LENGTH,))
+        char_embedding = \
+            Embedding(input_dim=vocab_size, output_dim=char_emb_dim, weights=[init_weight], trainable=True)(word_input)
     # print("char_embedding:", char_embedding._keras_shape)
     if cnn_encoder:
         if mode == "padding":
@@ -271,11 +287,11 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
                     char_embedding)
                 feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
             if shape_filter and char_filter:
-                feature = concatenate([feature_s1, feature_s2, feature_s3, feature1, feature2, feature3])
+                feature = Concatenate()([feature_s1, feature_s2, feature_s3, feature1, feature2, feature3])
             elif shape_filter and not char_filter:
-                feature = concatenate([feature_s1, feature_s2, feature_s3])
+                feature = Concatenate()([feature_s1, feature_s2, feature_s3])
             elif char_filter and not shape_filter:
-                feature = concatenate([feature1, feature2, feature3])
+                feature = Concatenate()([feature1, feature2, feature3])
             else:
                 feature = None
         feature = Flatten()(feature)
@@ -292,6 +308,11 @@ def build_word_feature_shape(vocab_size=5, char_emb_dim=CHAR_EMB_DIM, comp_width
                 pass
     else:
         feature = Flatten()(char_embedding)
+    # if position:
+    #     word_feature_encoder = Model(inputs=[word_input, idc_input, pos_input], outputs=feature)
+    # else:
+    # print(word_input)
+    # print(feature)
     word_feature_encoder = Model(word_input, feature)
     return word_feature_encoder
 
@@ -328,7 +349,7 @@ def build_word_feature_char(vocab_size=5, char_emb_dim=CHAR_EMB_DIM,
             feature3 = Conv1D(filters=300, kernel_size=3, activation='relu')(
                 char_embedding)
             feature3 = MaxPooling1D(pool_size=MAX_WORD_LENGTH - 3 + 1)(feature3)
-            feature = concatenate([feature1, feature2, feature3])
+            feature = Concatenate()([feature1, feature2, feature3])
         feature = Flatten()(feature)
         # print(feature._keras_shape)
         if highway:
@@ -341,16 +362,20 @@ def build_word_feature_char(vocab_size=5, char_emb_dim=CHAR_EMB_DIM,
 
 def build_sentence_rnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10,
                        classes=2, attention=False, dropout=0,
-                       word=True, char=False, char_shape=True, model="rnn", cnn_encoder=True,
-                       highway=None, nohighway=None, shape_filter=True, char_filter=True):
+                       word=False, char=False, char_shape=True, model="rnn", cnn_encoder=True,
+                       highway=None, nohighway=None, shape_filter=True, char_filter=True, position=False):
     # build the rnn of words, use the output of build_word_feature as the feature of each word
     if char_shape:
         word_feature_encoder = build_word_feature_shape(vocab_size=real_vocab_number,
                                                         cnn_encoder=cnn_encoder,
                                                         highway=highway, nohighway=nohighway,
                                                         shape_filter=shape_filter,
-                                                        char_filter=char_filter)
-        sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype='int32')
+                                                        char_filter=char_filter,
+                                                        position=position)
+        if position:
+            sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, 3, COMP_WIDTH * MAX_WORD_LENGTH), dtype='int32')
+        else:
+            sentence_input = Input(shape=(MAX_SENTENCE_LENGTH, COMP_WIDTH * MAX_WORD_LENGTH), dtype='int32')
         word_feature_sequence = TimeDistributed(word_feature_encoder)(sentence_input)
         # print(word_feature_sequence._keras_shape)
     if word:
@@ -362,7 +387,7 @@ def build_sentence_rnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10
         char_input = Input(shape=(MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype='int32')
         word_feature_sequence = TimeDistributed(word_feature_encoder)(char_input)
     if char_shape and word and not char:
-        word_feature_sequence = concatenate([word_feature_sequence, word_embedding_sequence], axis=2)
+        word_feature_sequence = Concatenate(axis=2)([word_feature_sequence, word_embedding_sequence])
     if word and not char_shape and not char:
         word_feature_sequence = word_embedding_sequence
     # print(word_feature_sequence._keras_shape)
@@ -418,7 +443,7 @@ def build_sentence_cnn(real_vocab_number, word_vocab_size=10, char_vocab_size=10
         char_input = Input(shape=(MAX_SENTENCE_LENGTH, MAX_WORD_LENGTH), dtype='int32')
         word_feature_sequence = TimeDistributed(word_feature_encoder)(char_input)
     if char_shape and word and not char:
-        word_feature_sequence = concatenate([word_feature_sequence, word_embedding_sequence], axis=2)
+        word_feature_sequence = Concatenate(axis=2)([word_feature_sequence, word_embedding_sequence])
     if word and not char_shape and not char:
         word_feature_sequence = word_embedding_sequence
     # print(word_feature_sequence._keras_shape)
