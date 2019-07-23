@@ -38,27 +38,6 @@ def load_data(set='015'):
         exit(-1)
 
 
-def plot_result(history, dirname):
-    plt.clf()
-    plt.figure(figsize=(4, 3))
-    plt.ylim(0.0, 0.5)
-    print(dir(history))
-    print(dir(history.validation_data))
-    print(history.history.keys())
-    print(history.history['val_loss'])
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    plt.plot(history.history['Test_N_loss'])
-    plt.plot(history.history['Test_UNKW_loss'])
-    plt.plot(history.history['Test_UNKC_loss'])
-    # plt.title('model loss')
-    plt.ylabel('Cross Entropy Error')
-    plt.xlabel('Epoch')
-    plt.legend(['train', 'validate', 'normal test', 'unknown words', 'unknown characters'], loc='upper left')
-    # plt.show()
-    plt.savefig('plots/' + dirname + ".png", bbox_inches='tight')
-
-
 def shuffle_data_one_set(data_shape, data_char, data_word, labels):
     # split data into training and validation
     indices = numpy.arange(data_char.shape[0])

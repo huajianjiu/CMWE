@@ -1,5 +1,7 @@
 from matplotlib import pyplot as plt
 import pickle
+import keras
+import seaborn as sns
 
 
 LINEWIDTH=2.0
@@ -41,24 +43,29 @@ def plot_results(results, dirname, datatype="keras"):
 
 
 def plot_result(history, dirname):
+    if isinstance(history, keras.callbacks.History):
+        history=history.history
+    sns.reset_orig()
     plt.clf()
-    # plt.plot(history.history['acc'])
-    # plt.plot(history.history['val_acc'])
-    # plt.title('model accuracy')
-    # plt.ylabel('accuracy')
-    # plt.xlabel('epoch')
-    # plt.legend(['train', 'test'], loc='upper left')
-    # plt.show()
+    plt.style.use("seaborn-paper")
+    fig = plt.figure(figsize=(10, 3), dpi=300, facecolor="white")
     # summarize history for loss
-    plt.figure(figsize=(4,3))
-    plt.ylim(0.0, 0.7)
-    plt.plot(history.history['loss'])
-    plt.plot(history.history['val_loss'])
-    # plt.title('model loss')
-    plt.ylabel('Cross Entropy Error')
-    plt.xlabel('Epoch')
-    plt.legend(['train', 'validate'], loc='upper left')
-    # plt.show()
+    ax = plt.subplot("121")
+    ax.plot(history['loss'])
+    ax.plot(history['val_loss'])
+    ax.grid(True)
+    ax.set_ylabel('Cross Entropy Error')
+    ax.set_xlabel('Epoch')
+    ax.set_ylim(0, 1)
+    ax.legend(['training', 'validation'], loc='upper right')
+    ax = plt.subplot("122")
+    ax.plot(history['acc'])
+    ax.plot(history['val_acc'])
+    ax.set_ylabel('Accuracy')
+    ax.grid(True)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel('Epoch')
+    ax.legend(['training', 'validation'], loc='lower right')
     plt.savefig('plots/' + dirname + ".png", bbox_inches='tight')
 
 
